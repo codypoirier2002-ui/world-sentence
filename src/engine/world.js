@@ -9,6 +9,9 @@ import { LANDMARKS, LANDMARK_MAIN } from '../kit/landmarks.js';
 import { SCATTER, LANDMARK_KINDS } from '../kit/catalog.js';
 import { mix, darken, lighten, shiftHue, isHex } from '../kit/colors.js';
 import { Materials } from './materials.js';
+import { buildCreature } from '../kit/creatures.js';
+import { makeSignPost, makeBoard } from './signs.js';
+import { Locals } from './locals.js';
 
 export function resolvePalette(p) {
   const out = { ...p };
@@ -129,6 +132,18 @@ export function buildWorld(recipe, { quality = 'high' } = {}) {
       billboard: (w, h, at) => { board = { w, h, at }; },
     };
     const info = build(local, rng.fork(`lmb${p.index}`), P, A) || { r: p.rad, h: 6 };
+    if (info.creatureAt) {
+      // a statue of the locals' own kind (the ruler if there is one)
+      const who = (recipe.locals || []).find((l) => l.ruler) || (recipe.locals || [])[0];
+      if (who) {
+        const statue = new Geo(rng.fork(`statue${p.index}`).next);
+        const stone = P.main;
+        buildCreature(statue, { ...who, color: stone, accent: darken(stone, 0.25), skin: lighten(stone, 0.05) }, rng.fork('st').next);
+        // statues don't glow
+        statue.solid.push(...statue.glow); statue.solidC.push(...statue.glowC.map((v) => v * 0.9)); statue.glow = []; statue.glowC = [];
+        local.merge(statue, info.creatureAt[0], info.creatureAt[1], info.creatureAt[2], 0, info.creatureScale || 3);
+      }
+    }
     // face the spawn point
     const ry = Math.atan2(-p.x, -p.z);
     p.ry = ry;
@@ -157,6 +172,44 @@ export function buildWorld(recipe, { quality = 'high' } = {}) {
       scale: p.scale, board, creatureAt: info.creatureAt, creatureScale: info.creatureScale, colors: P,
     });
   }
+  // --- signs: one at each point of interest, plus a welcome sign ----------
+  const signs = [];
+  const disposables = [];
+  const wood = pal.wood;
+  for (const poi of pois) {
+    const d = Math.hypot(poi.x, poi.z) || 1;
+    const dx = -poi.x / d, dz = -poi.z / d;
+    const side = (poi.ry > 0 ? 1 : -1) * 1.6;
+    let sx = poi.x + dx * (poi.r + 2.2) - dz * side, sz = poi.z + dz * (poi.r + 2.2) + dx * side;
+    const sy = terrain.heightAt(sx, sz);
+    const post = makeSignPost({ text: poi.sign, title: poi.name, x: sx, y: sy, z: sz, ry: Math.atan2(-sx, -sz), wood });
+    group.add(post.group);
+    disposables.push(post.group.userData.dispose);
+    colliders.add(sx, sz, 0.35);
+    signs.push({ type: 'sign', title: poi.name, text: poi.sign, center: post.center, radius: post.radius, poi });
+    if (poi.board) {
+      const b = poi.board;
+      const isShop = poi.kind === 'shop';
+      const mesh = makeBoard({ text: isShop ? '' : poi.sign, title: isShop ? poi.name : '', w: b.w, h: b.h, neon: recipe.sky.time === 'night' || recipe.medium === 'space' });
+      const cos = Math.cos(poi.ry), sin = Math.sin(poi.ry);
+      mesh.position.set(poi.x + (b.at[0] * cos + b.at[2] * sin) * poi.scale, poi.y + b.at[1] * poi.scale, poi.z + (-b.at[0] * sin + b.at[2] * cos) * poi.scale);
+      mesh.rotation.y = poi.ry;
+      mesh.scale.setScalar(poi.scale);
+      group.add(mesh);
+      disposables.push(mesh.userData.dispose);
+    }
+  }
+  {
+    const yaw = placed.length ? Math.atan2(-placed[0].x, -placed[0].z) : 0;
+    const fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = Math.cos(yaw), rz = -Math.sin(yaw);
+    const wx = fx * 4.2 - rx * 2.6, wz = fz * 4.2 - rz * 2.6;
+    const post = makeSignPost({ text: recipe.welcome, title: recipe.name, x: wx, y: terrain.heightAt(wx, wz), z: wz, ry: Math.atan2(-wx, -wz) + 0.35, wood });
+    group.add(post.group);
+    disposables.push(post.group.userData.dispose);
+    colliders.add(wx, wz, 0.35);
+    signs.push({ type: 'sign', title: recipe.name, text: recipe.welcome, center: post.center, radius: post.radius, welcome: true });
+  }
+
   const lmBuilt = lmGeo.build();
   if (lmBuilt.solid) { const m = new THREE.Mesh(lmBuilt.solid, mats.solid); m.matrixAutoUpdate = false; group.add(m); }
   if (lmBuilt.glow) { const m = new THREE.Mesh(lmBuilt.glow, mats.glow); m.matrixAutoUpdate = false; group.add(m); }
@@ -243,15 +296,24 @@ export function buildWorld(recipe, { quality = 'high' } = {}) {
   }
 
   const spawnYaw = placed.length ? Math.atan2(-placed[0].x, -placed[0].z) : 0;
-
-  return {
-    recipe, group, terrain, pois, colliders, mats,
+  const world = {
+    recipe, group, terrain, pois, colliders, mats, signs,
     spawn: { x: 0, z: 0, yaw: spawnYaw },
     waterLevel: terrain.waterLevel,
     heightAt: (x, z) => terrain.heightAt(x, z),
     collide: (pos, r) => colliders.collide(pos, r),
-    update(dt, t) {
+  };
+  const locals = new Locals(recipe, world, mats);
+
+  return {
+    recipe, group, terrain, pois, colliders, mats, signs, locals,
+    spawn: { x: 0, z: 0, yaw: spawnYaw },
+    waterLevel: terrain.waterLevel,
+    heightAt: (x, z) => terrain.heightAt(x, z),
+    collide: (pos, r) => { colliders.collide(pos, r); locals.pushPlayer(pos, r); },
+    update(dt, t, camera) {
       mats.update(t);
+      if (camera) locals.update(dt, t, camera.position);
       if (terrain.waterMesh) terrain.waterMesh.userData.uniforms.uTime.value = t;
       for (const c of critters) c.update(dt, t);
       for (const a of animated) {
@@ -260,6 +322,8 @@ export function buildWorld(recipe, { quality = 'high' } = {}) {
       }
     },
     dispose() {
+      for (const d of disposables) d();
+      locals.dispose();
       group.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
       mats.dispose();
       terrain.waterMesh?.material.dispose();

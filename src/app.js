@@ -1,10 +1,12 @@
 // App flow: title -> building -> intro card -> walking -> back to title.
+import * as THREE from 'three';
 import { Engine, IS_TOUCH } from './engine/engine.js';
+import { Hud } from './ui/hud.js';
 import { buildWorld } from './engine/world.js';
 import { playBuildSequence, hideBuild } from './ui/building.js';
 import { SAMPLE_WORLD } from './worlds/sample.js';
-import { generateRecipe } from './gen/generate.js';
-import { checkAI, aiStatus, aiWorld } from './gen/ai.js';
+import { generateRecipe, moreLinesOffline } from './gen/generate.js';
+import { checkAI, aiStatus, aiWorld, aiLines } from './gen/ai.js';
 import { hashString } from './gen/rng.js';
 import { sanitizeRecipe } from './gen/recipe.js';
 
@@ -38,6 +40,10 @@ export class App {
       hud: $('hud'), hudName: $('hud-name'), hudFound: $('hud-found'), hudMenu: $('hud-menu'),
     };
     this.engine = new Engine($('scene'), { joyBase: $('joy'), joyKnob: $('joy-knob'), crosshair: $('crosshair') });
+    this.hud = new Hud();
+    this.raycaster = new THREE.Raycaster();
+    this.engine.controls.onTap = (x, y) => this.interact(x, y);
+    this.engine.onFrame((dt, t) => this.frame(dt, t));
     this.current = null;
     this.busy = false;
     this._wireTitle();
@@ -127,7 +133,7 @@ export class App {
     const world = buildWorld(recipe, { quality: this.engine.quality });
     this.engine.setWorld(world);
     this.engine.walk(false);
-    this.current = { recipe, world };
+    this.current = { recipe, world, found: new Set(), hinted: false };
     hideBuild(this.els.building);
     this.showIntro(recipe, world);
   }
@@ -155,11 +161,88 @@ export class App {
   startWalking() {
     this.els.intro.classList.remove('show');
     this.els.hud.classList.add('show');
-    this.els.hudName.textContent = this.current?.recipe.name || '';
+    this.hud.setWorld(this.current?.recipe.name || '');
+    this.hud.setFound(this.current.found.size, this.current.world.pois.length);
     this.engine.walk(true);
   }
 
+  // ---------------------------------------------------------------- interaction
+  interact(x, y) {
+    if (!this.current || this.engine.mode !== 'walk') return false;
+    const w = this.engine.world, cam = this.engine.camera;
+    this.raycaster.setFromCamera(new THREE.Vector2((x / window.innerWidth) * 2 - 1, -(y / window.innerHeight) * 2 + 1), cam);
+    const ray = this.raycaster.ray, sphere = new THREE.Sphere(), hitAt = new THREE.Vector3();
+    const pad = IS_TOUCH ? 1.35 : 1.1;
+    let best = null, bestD = Infinity;
+    const test = (c) => {
+      sphere.set(c.center, c.radius * pad);
+      if (ray.intersectSphere(sphere, hitAt)) {
+        const d = ray.origin.distanceTo(c.center);
+        if (d < bestD && d < 32) { best = c; bestD = d; }
+      }
+    };
+    for (const c of w.locals.hitSpheres()) test(c);
+    for (const c of w.signs) test(c);
+    if (!best) for (const p of w.pois) test({ type: 'poi', poi: p, center: new THREE.Vector3(p.x, p.y + p.h * 0.4, p.z), radius: Math.max(2.2, p.r) });
+    if (!best) { this.hud.hideBubble(); return false; }
+    if (best.type === 'local') this.talk(best.ref);
+    else if (best.type === 'sign') this.hud.showSign(best.title, best.text, best.center);
+    else this.hud.showSign(best.poi.name, best.poi.sign, best.center);
+    return true;
+  }
+
+  talk(l) {
+    const t = this.engine.time;
+    this.engine.world.locals.startTalk(l, t);
+    const lines = l.data.lines;
+    if (l.lineIdx >= lines.length) {
+      if (l.fetching) { this.hud.showBubble(l, '\u2026', t); return; }
+      l.lineIdx = 0;
+    }
+    const line = lines[l.lineIdx++];
+    this.hud.showBubble(l, line, t);
+    this.sound?.talk(l.data, line);
+    if (l.lineIdx >= lines.length - 1 && !l.fetching && l.fetches < 3) this.fetchMoreLines(l);
+  }
+
+  async fetchMoreLines(l) {
+    const recipe = this.current?.recipe;
+    if (!recipe) return;
+    l.fetching = true;
+    l.fetches++;
+    let more = [];
+    try {
+      if (aiStatus().ai) more = await aiLines(recipe, l.data);
+    } catch { /* fall through to offline lines */ }
+    if (!more.length) more = moreLinesOffline(recipe, l.index, l.fetches);
+    const seen = new Set(l.data.lines);
+    l.data.lines.push(...more.filter((x) => x && !seen.has(x)).slice(0, 3));
+    l.fetching = false;
+    this.onRecipeChanged?.();
+  }
+
+  frame(dt, t) {
+    if (this.engine.mode !== 'walk' || !this.current) return;
+    const w = this.engine.world, p = this.engine.controls.pos, cur = this.current;
+    this.hud.update(t, this.engine.camera, w.locals, p);
+    for (const poi of w.pois) {
+      if (cur.found.has(poi.name) || Math.hypot(p.x - poi.x, p.z - poi.z) > poi.r + 7) continue;
+      cur.found.add(poi.name);
+      this.hud.setFound(cur.found.size, w.pois.length);
+      if (cur.found.size === w.pois.length) {
+        this.hud.toast(['Found ', poi.name, `. That\u2019s everything in ${cur.recipe.name}. Nothing happens. Well done.`], 5200);
+      } else this.hud.toast(['Found ', poi.name, ` (${cur.found.size} of ${w.pois.length})`]);
+      this.onRecipeChanged?.();
+    }
+    if (!cur.hinted) {
+      const near = w.locals.list.find((l) => Math.hypot(p.x - l.pos.x, p.z - l.pos.z) < 5);
+      if (near) { cur.hinted = true; this.hud.toast([IS_TOUCH ? 'Tap ' : 'Click ', near.data.name, ' to say hello.'], 3600); }
+    }
+  }
+
   toTitle() {
+    this.hud.hideBubble();
+    this.hud.hideSign();
     this.engine.walk(false);
     this.els.hud.classList.remove('show');
     this.els.intro.classList.remove('show');

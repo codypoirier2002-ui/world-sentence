@@ -4,7 +4,7 @@
 import { SCATTER, LANDMARK_KINDS, SPECIES, HATS, SHAPES, GROUNDS, WATERS, TIMES, WEATHERS, MEDIUMS, AMBIENCES, CRITTER_VARIANTS } from '../kit/catalog.js';
 
 export const RECIPE_VERSION = 1;
-export const LIMITS = { sentence: 120, name: 48, intro: 360, welcome: 160, landmarkName: 48, sign: 150, localName: 36, role: 44, line: 150, lines: 12 };
+export const LIMITS = { sentence: 120, name: 48, intro: 360, welcome: 160, landmarkName: 48, sign: 150, localName: 36, role: 44, line: 150, lines: 24 };
 
 const isHex = (s) => typeof s === 'string' && /^#[0-9a-fA-F]{6}$/.test(s);
 const num = (v, a, b, d) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(b, Math.max(a, v)) : d);

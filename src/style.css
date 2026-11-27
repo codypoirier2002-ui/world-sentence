@@ -154,6 +154,7 @@ h1 span { font-size: 0.5em; font-weight: 600; color: var(--muted); letter-spacin
 .sign-card.on { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
 .sign-card .eyebrow { color: #e6c08a; font-family: var(--font); }
 .sign-card p { margin: 0 0 6px; font-size: 18px; line-height: 1.35; }
+.sign-card strong { display: block; font-family: var(--font); font-size: 15px; letter-spacing: 0.02em; color: #f3d9a8; margin-bottom: 4px; }
 .sign-card .link { color: #fbeed6; font-family: var(--font); }
 .crosshair { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: rgba(255, 255, 255, 0.85); box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35); display: none; }
 .crosshair.on { display: block; }
