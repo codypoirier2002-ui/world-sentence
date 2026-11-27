@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#0b0d14" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="description" content="Type one sentence and walk around the small 3D world it makes." />
+  <title>World from a Sentence</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+</head>
+<body>
+  <canvas id="scene" aria-label="3D world"></canvas>
+
+  <!-- Title -->
+  <section id="title" class="screen show" aria-label="Title">
+    <div class="title-inner">
+      <p class="eyebrow">one line in, one world out</p>
+      <h1>World<br /><span>from a</span> Sentence</h1>
+      <form id="build-form" autocomplete="off">
+        <label for="sentence" class="sr">Describe a world in one sentence</label>
+        <div class="field">
+          <input id="sentence" name="sentence" type="text" maxlength="120" enterkeyhint="go" spellcheck="true"
+                 placeholder="a swamp ruled by frogs" />
+          <button type="button" id="dice" class="icon-btn" aria-label="Random sentence" title="Random sentence">⚄</button>
+        </div>
+        <button id="build" type="submit" class="primary">Build</button>
+      </form>
+      <nav class="title-links">
+        <button type="button" id="open-gallery" class="link">Your worlds <span id="gallery-count"></span></button>
+        <span aria-hidden="true">·</span>
+        <button type="button" id="open-sample" class="link">Walk the test meadow</button>
+      </nav>
+      <p id="title-note" class="note" role="status"></p>
+      <span id="ai-chip" class="chip" aria-live="polite"></span>
+    </div>
+  </section>
+
+  <!-- Building sequence -->
+  <section id="building" class="screen" aria-label="Building your world" aria-live="polite">
+    <div class="build-inner">
+      <div class="globe" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+      <p class="build-sentence" id="build-sentence"></p>
+      <p class="build-stage" id="build-stage">Reading your sentence…</p>
+      <div class="bar"><div id="build-bar"></div></div>
+    </div>
+  </section>
+
+  <!-- Intro card -->
+  <section id="intro" class="screen" aria-label="World introduction">
+    <div class="card intro-card">
+      <p class="eyebrow" id="intro-eyebrow">you have arrived in</p>
+      <h2 id="intro-name"></h2>
+      <p id="intro-text"></p>
+      <ul class="intro-facts" id="intro-facts"></ul>
+      <button id="intro-go" class="primary">Start exploring</button>
+      <p class="hint" id="intro-hint"></p>
+    </div>
+  </section>
+
+  <!-- In-world HUD -->
+  <section id="hud" aria-label="World controls">
+    <div class="hud-top">
+      <button id="hud-menu" class="pill" aria-label="Back to title">←</button>
+      <div class="pill name-pill"><span id="hud-name"></span><small id="hud-found"></small></div>
+      <button id="hud-share" class="pill" aria-label="Share this world">Share</button>
+      <button id="hud-time" class="pill" aria-label="Change the time of day" title="Time of day">◐</button>
+      <button id="hud-sound" class="pill" aria-label="Toggle sound" title="Sound">♪</button>
+    </div>
+    <div id="toast" class="toast" role="status"></div>
+    <div id="bubble" class="bubble" role="dialog" aria-live="polite"><b id="bubble-name"></b><small id="bubble-role"></small><p id="bubble-text"></p></div>
+    <div id="sign-card" class="card sign-card" role="dialog" aria-live="polite"><p class="eyebrow">a sign says</p><p id="sign-text"></p><button class="link" id="sign-close">ok</button></div>
+    <div id="crosshair" class="crosshair" aria-hidden="true"></div>
+    <div id="joy" class="joy" aria-hidden="true"><div id="joy-knob"></div></div>
+  </section>
+
+  <!-- Gallery -->
+  <section id="gallery" class="screen" aria-label="Your worlds">
+    <div class="gallery-inner">
+      <header><h2>Your worlds</h2><button id="gallery-close" class="pill" aria-label="Close">✕</button></header>
+      <div id="gallery-list" class="gallery-list"></div>
+      <p id="gallery-empty" class="note">No worlds yet. Type a sentence and press Build.</p>
+    </div>
+  </section>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
