@@ -169,8 +169,42 @@ export class Terrain {
     return h;
   }
 
+  // A gently curving road that passes beside the spawn point.
+  addRoad(rng) {
+    const th = rng.range(0, Math.PI * 2);
+    const d = [Math.cos(th), Math.sin(th)], n = [-Math.sin(th), Math.cos(th)];
+    const off0 = rng.sign() * rng.range(5.5, 7), amp = rng.range(2, 5), f = rng.range(0.03, 0.06), ph = rng.range(0, 6.28);
+    const offAt = (t) => off0 + amp * Math.sin(t * f + ph) - amp * Math.sin(ph);
+    // height profile along the road: raw heights, smoothed, kept above water
+    const step = 2, ts = [], hs = [];
+    for (let t = -HALF * 1.5; t <= HALF * 1.5; t += step) {
+      const o = offAt(t), x = n[0] * o + d[0] * t, z = n[1] * o + d[1] * t;
+      ts.push(t); hs.push(this.rawHeightAt(x, z));
+    }
+    const sm = hs.map((_, i) => { let s = 0, c = 0; for (let k = -4; k <= 4; k++) { const v = hs[i + k]; if (v !== undefined) { s += v; c++; } } return s / c; });
+    const wl = this.waterLevel > -1e5 ? this.waterLevel + 0.5 : -1e9;
+    this.road = { d, n, offAt, ts, hs: sm.map((h) => Math.max(h, wl)), step, half: 3.0 };
+  }
+
+  roadAt(x, z) {
+    const R = this.road;
+    if (!R) return null;
+    const t = x * R.d[0] + z * R.d[1];
+    const dist = x * R.n[0] + z * R.n[1] - R.offAt(t);
+    const fi = (t - R.ts[0]) / R.step, i = Math.max(0, Math.min(R.hs.length - 2, Math.floor(fi))), u = Math.min(1, Math.max(0, fi - i));
+    return { t, dist, h: R.hs[i] + (R.hs[i + 1] - R.hs[i]) * u };
+  }
+  roadDist(x, z) { const r = this.roadAt(x, z); return r ? Math.abs(r.dist) : Infinity; }
+
   finalize() {
     const N = this.N, H = this.heights;
+    if (this.road) {
+      for (let j = 0; j <= N; j++) for (let i = 0; i <= N; i++) {
+        const ra = this.roadAt(this.gx(i), this.gx(j));
+        const w = smoothstep(7.5, 3.6, Math.abs(ra.dist));
+        if (w > 0) { const k = this.idx(i, j); H[k] = lerp(H[k], ra.h, w); }
+      }
+    }
     for (const f of this.flats) {
       const R = f.r * 1.9;
       const i0 = Math.max(0, Math.floor((f.x - R + HALF) / this.cell)), i1 = Math.min(N, Math.ceil((f.x + R + HALF) / this.cell));
@@ -183,6 +217,42 @@ export class Terrain {
     }
     this.mesh = this._buildMesh();
     if (this.waterLevel > -1e5) this.waterMesh = this._buildWater();
+    if (this.road) this.roadMesh = this._buildRoad();
+  }
+
+  _buildRoad() {
+    const R = this.road, pos = [], colr = [];
+    const asphalt = col('#3a3d42'), white = col('#e8e8e2'), yellow = col('#f2c21a');
+    const cuts = [-3.0, -2.78, -0.1, 0.1, 2.78, 3.0];
+    const at = (t, o) => {
+      const off = R.offAt(t);
+      const e = 0.5, t2 = t + e;
+      const tx = R.d[0] * e + R.n[0] * (R.offAt(t2) - off), tz = R.d[1] * e + R.n[1] * (R.offAt(t2) - off);
+      const len = Math.hypot(tx, tz), px = -tz / len, pz = tx / len;
+      const cx = R.n[0] * off + R.d[0] * t, cz = R.n[1] * off + R.d[1] * t;
+      const x = cx + px * o, z = cz + pz * o;
+      return [x, this.heightAt(x, z) + 0.07, z];
+    };
+    const seg = 1.6;
+    for (let t = -HALF * 1.45; t < HALF * 1.45; t += seg) {
+      for (let k = 0; k < cuts.length - 1; k++) {
+        const a = at(t, cuts[k]), b = at(t, cuts[k + 1]), c = at(t + seg, cuts[k]), d = at(t + seg, cuts[k + 1]);
+        if (Math.hypot(a[0], a[2]) > HALF - 3 || Math.hypot(d[0], d[2]) > HALF - 3) continue;
+        const dash = Math.floor(t / (seg * 2)) % 2 === 0;
+        const cc = k === 0 || k === 4 ? white : k === 2 ? (dash ? yellow : asphalt) : asphalt;
+        const f = 1 + (this.rng.float() - 0.5) * 0.05;
+        for (const v of [a, c, b, b, c, d]) { pos.push(...v); colr.push(cc.r * f, cc.g * f, cc.b * f); }
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(colr, 3));
+    g.computeVertexNormals();
+    // keep the up-facing side visible whichever way the strip was wound
+    const mesh = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+    mesh.name = 'road';
+    mesh.matrixAutoUpdate = false;
+    return mesh;
   }
 
   _sample(H, x, z) {
@@ -225,7 +295,9 @@ export class Terrain {
         else tmp.copy(ground).lerp(ground2, this.noise2(cx * 0.3, cz * 0.3) > 0.55 ? 0.6 : 0);
       } else {
         const patch = smoothstep(0.05, 0.35, this.noise3(cx * 0.045, cz * 0.045));
-        tmp.copy(ground).lerp(ground2, patch);
+        if (style === 'lawn' && Math.hypot(cx, cz) < WALK_R) tmp.copy(ground).lerp(ground2, (cj >> 1) % 2 ? 0.55 : 0.1);
+        else if (style === 'asphalt') tmp.copy(ground).lerp(ground2, patch * 0.4);
+        else tmp.copy(ground).lerp(ground2, patch);
         if (slope > 0.75) tmp.lerp(rock, smoothstep(0.75, 1.2, slope));
         if (this.spec.shape === 'mountains' && hAvg > peakH) tmp.lerp(peak, 0.85);
       }

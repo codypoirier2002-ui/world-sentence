@@ -86,6 +86,7 @@ export function buildWorld(recipe, { quality = 'high' } = {}) {
   const terrain = new Terrain(recipe.terrain, pal, recipe.seed, { segments: segs, medium: recipe.medium });
 
   // --- layout: spawn + landmarks ---------------------------------------
+  if (recipe.terrain.road && recipe.medium !== 'underwater') terrain.addRoad(rng.fork('road'));
   terrain.flatten(0, 0, 6);
   const lmRng = rng.fork('landmarks');
   const lms = recipe.landmarks || [];
@@ -107,6 +108,8 @@ export function buildWorld(recipe, { quality = 'high' } = {}) {
       if (terrain.waterLevel > -1e5 && h < terrain.waterLevel + 0.2) score -= 4 + (terrain.waterLevel - h);
       for (const p of placed) { const d = Math.hypot(x - p.x, z - p.z) - p.rad - rad; if (d < 8) score -= (8 - d); }
       score -= Math.abs(terrain.slopeAt(x, z)) * 0.5;
+      const rd = terrain.roadDist(x, z);
+      if (rd < rad + 4) score -= 6 + (rad + 4 - rd);
       score += lmRng.range(0, 0.5);
       if (score > bestScore) { bestScore = score; best = { x, z }; }
     }
@@ -116,6 +119,7 @@ export function buildWorld(recipe, { quality = 'high' } = {}) {
   terrain.finalize();
   group.add(terrain.mesh);
   if (terrain.waterMesh) group.add(terrain.waterMesh);
+  if (terrain.roadMesh) group.add(terrain.roadMesh);
 
   // --- landmarks ---------------------------------------------------------
   const lmGeo = new Geo(rng.fork('lmgeo').next);
@@ -129,7 +133,7 @@ export function buildWorld(recipe, { quality = 'high' } = {}) {
     const A = {
       spin: (geo, pivot, axis, speed) => anims.push({ type: 'spin', geo, pivot, axis, speed }),
       bob: (geo, pivot, amp, speed) => anims.push({ type: 'bob', geo, pivot, amp, speed }),
-      billboard: (w, h, at) => { board = { w, h, at }; },
+      billboard: (w, h, at, mode) => { board = { w, h, at, mode }; },
     };
     const info = build(local, rng.fork(`lmb${p.index}`), P, A) || { r: p.rad, h: 6 };
     if (info.creatureAt) {
@@ -181,6 +185,7 @@ export function buildWorld(recipe, { quality = 'high' } = {}) {
     const dx = -poi.x / d, dz = -poi.z / d;
     const side = (poi.ry > 0 ? 1 : -1) * 1.6;
     let sx = poi.x + dx * (poi.r + 2.2) - dz * side, sz = poi.z + dz * (poi.r + 2.2) + dx * side;
+    if (terrain.roadDist(sx, sz) < 3.8) { sx = poi.x + dx * (poi.r + 2.2) + dz * side; sz = poi.z + dz * (poi.r + 2.2) - dx * side; }
     const sy = terrain.heightAt(sx, sz);
     const post = makeSignPost({ text: poi.sign, title: poi.name, x: sx, y: sy, z: sz, ry: Math.atan2(-sx, -sz), wood });
     group.add(post.group);
@@ -189,7 +194,7 @@ export function buildWorld(recipe, { quality = 'high' } = {}) {
     signs.push({ type: 'sign', title: poi.name, text: poi.sign, center: post.center, radius: post.radius, poi });
     if (poi.board) {
       const b = poi.board;
-      const isShop = poi.kind === 'shop';
+      const isShop = b.mode === 'name';
       const mesh = makeBoard({ text: isShop ? '' : poi.sign, title: isShop ? poi.name : '', w: b.w, h: b.h, neon: recipe.sky.time === 'night' || recipe.medium === 'space' });
       const cos = Math.cos(poi.ry), sin = Math.sin(poi.ry);
       mesh.position.set(poi.x + (b.at[0] * cos + b.at[2] * sin) * poi.scale, poi.y + b.at[1] * poi.scale, poi.z + (-b.at[0] * sin + b.at[2] * cos) * poi.scale);
@@ -202,7 +207,8 @@ export function buildWorld(recipe, { quality = 'high' } = {}) {
   {
     const yaw = placed.length ? Math.atan2(-placed[0].x, -placed[0].z) : 0;
     const fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = Math.cos(yaw), rz = -Math.sin(yaw);
-    const wx = fx * 6 - rx * 3.8, wz = fz * 6 - rz * 3.8;
+    let wx = fx * 6 - rx * 3.8, wz = fz * 6 - rz * 3.8;
+    if (terrain.roadDist(wx, wz) < 4) { wx = fx * 6 + rx * 3.8; wz = fz * 6 + rz * 3.8; }
     const post = makeSignPost({ text: recipe.welcome, title: recipe.name, x: wx, y: terrain.heightAt(wx, wz), z: wz, ry: Math.atan2(-wx, -wz), wood });
     group.add(post.group);
     disposables.push(post.group.userData.dispose);
@@ -220,6 +226,7 @@ export function buildWorld(recipe, { quality = 'high' } = {}) {
   const wl = terrain.waterLevel, hasWater = wl > -1e5;
   const blocked = (x, z, pad) => {
     if (Math.hypot(x, z) < 4.5 + pad) return true;
+    if (terrain.roadDist(x, z) < 3.8 + pad) return true;
     for (const p of placed) if (Math.hypot(x - p.x, z - p.z) < p.rad + 1.5 + pad) return true;
     return false;
   };
@@ -328,6 +335,7 @@ export function buildWorld(recipe, { quality = 'high' } = {}) {
       mats.dispose();
       terrain.waterMesh?.material.dispose();
       terrain.mesh?.material.dispose();
+      terrain.roadMesh?.material.dispose();
     },
   };
 }

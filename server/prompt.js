@@ -10,6 +10,8 @@ Tone: deadpan, dry, gently absurd, warm. Funny because it is matter-of-fact. Sui
 
 Everything must be invented. Do not use real people, celebrities, brands, companies, products, trademarks, games, films, books, or fictional characters, and do not name real-world landmarks. If the sentence mentions one, make an original stand-in with its own invented name instead. Real animals, ordinary jobs and generic places are fine.
 
+Use every part of the sentence. If it names a place and a setting ("a laundromat on the moon", "a diner at the bottom of the ocean"), show both: the place's building as the main landmark and its everyday props, set in that setting's terrain, sky and medium. Creatures, moods, colours, weather and odd objects in the sentence should all show up somewhere.
+
 What to make:
 - name: an invented place name (max 40 characters) that fits the sentence.
 - intro: 2-3 short sentences for an intro card. Start by restating the premise plainly, then one or two deadpan details. Max 300 characters.
@@ -26,7 +28,7 @@ If the sentence is under water, use medium "underwater" with water "none". Space
 Terrain shapes:
 ${list(SHAPES)}
 Grounds: ${GROUNDS.join(', ')} (tile, carpet, metal and wood make indoor-looking floors).
-Water: none, lake, river, sea, swamp.
+Water: none, lake, river, sea, swamp. Set terrain.road to true for roadside places (diners, gas stations, motels, suburbs, parking lots).
 Weather: ${WEATHERS.join(', ')}.
 Ambience (1-3): ${AMBIENCES.join(', ')}.
 

@@ -2,8 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateRecipe, moreLinesOffline } from '../src/gen/generate.js';
 import { sanitizeRecipe } from '../src/gen/recipe.js';
-import { THEMES } from '../src/gen/themes.js';
-import { SCATTER, LANDMARK_KINDS, SPECIES, AMBIENCES, WEATHERS, GROUNDS, SHAPES } from '../src/kit/catalog.js';
+import { THEMES, THEME_BY_ID } from '../src/gen/themes.js';
+import { PLACES } from '../src/gen/places.js';
+import { MOODS, LANDMARK_WORDS, PROP_WORDS } from '../src/gen/lexicon.js';
+import { HATS } from '../src/kit/catalog.js';
+import { SCATTER, LANDMARK_KINDS, SPECIES, AMBIENCES, WEATHERS, GROUNDS, SHAPES, TIMES } from '../src/kit/catalog.js';
 import { PROPS, PROP_MAIN } from '../src/kit/props.js';
 import { LANDMARKS, LANDMARK_MAIN } from '../src/kit/landmarks.js';
 import { buildWorld } from '../src/engine/world.js';
@@ -24,6 +27,55 @@ test('every theme only uses ids that exist in the kit', () => {
     assert.ok(GROUNDS.includes(th.terrain.ground), `${th.id}: ground`);
     assert.ok(SHAPES[th.terrain.shape], `${th.id}: shape`);
   }
+});
+
+test('every place and mood only uses ids that exist in the kit', () => {
+  for (const p of PLACES) {
+    assert.ok(THEME_BY_ID[p.home], `${p.id}: home ${p.home}`);
+    for (const k of [...p.landmarks, ...p.extra]) assert.ok(LANDMARK_KINDS[k], `${p.id}: landmark ${k}`);
+    for (const [k] of p.props) assert.ok(SCATTER[k], `${p.id}: prop ${k}`);
+    for (const sp of p.species) assert.ok(SPECIES[sp], `${p.id}: species ${sp}`);
+    for (const h of p.hats) assert.ok(HATS.includes(h), `${p.id}: hat ${h}`);
+    for (const a of p.ambience) assert.ok(AMBIENCES.includes(a), `${p.id}: ambience ${a}`);
+    if (p.ground) assert.ok(GROUNDS.includes(p.ground), `${p.id}: ground`);
+    if (p.time) assert.ok(TIMES.includes(p.time), `${p.id}: time`);
+    assert.ok(p.nouns.length && p.pre.length && p.suf.length && p.roles.length && p.things.length, `${p.id}: text`);
+  }
+  for (const [id, m] of Object.entries(MOODS)) {
+    for (const [k] of m.add || []) assert.ok(SCATTER[k], `${id}: prop ${k}`);
+    if (m.weather) assert.ok(WEATHERS.includes(m.weather), `${id}: weather`);
+    if (m.amb) assert.ok(AMBIENCES.includes(m.amb), `${id}: ambience`);
+  }
+  for (const k of Object.values(LANDMARK_WORDS)) assert.ok(LANDMARK_KINDS[k], `landmark word -> ${k}`);
+  for (const k of Object.values(PROP_WORDS)) assert.ok(SCATTER[k], `prop word -> ${k}`);
+});
+
+test('every keyword combines: place + setting + creatures + mood + named things', () => {
+  const kinds = (r) => r.landmarks.map((l) => l.kind), props = (r) => r.scatter.map((s) => s.prop);
+  const moon = generateRecipe('a laundromat on the moon');
+  assert.equal(moon.medium, 'space');
+  assert.ok(kinds(moon).includes('laundromat'));
+  assert.ok(props(moon).some((p) => ['washing_machine', 'sock', 'laundry_basket'].includes(p)));
+  assert.match(moon.intro, /moon/);
+  const sea = generateRecipe('a diner at the bottom of the ocean');
+  assert.equal(sea.medium, 'underwater');
+  assert.ok(kinds(sea).includes('diner'));
+  const frogs = generateRecipe('a parking lot in a swamp ruled by frogs');
+  assert.equal(frogs.terrain.water, 'swamp');
+  assert.ok(kinds(frogs).includes('parking_booth') && kinds(frogs).includes('throne'));
+  assert.ok(props(frogs).includes('parking_space'));
+  assert.ok(frogs.locals.some((l) => l.ruler && l.species === 'frog'));
+  const grave = generateRecipe('a bakery in a graveyard');
+  assert.ok(kinds(grave).includes('bakery'));
+  assert.ok(props(grave).includes('tombstone'));
+  assert.ok(kinds(generateRecipe('a mysterious water tower')).includes('water_tower'));
+  assert.ok(props(generateRecipe('a museum of lost socks')).includes('sock'));
+  const school = generateRecipe('a school');
+  assert.ok(kinds(school).includes('school'));
+  assert.equal(school.terrain.road, true);
+  const three = generateRecipe('a laundromat and a diner and a gas station on the moon');
+  for (const k of ['laundromat', 'diner', 'gas_station']) assert.ok(kinds(three).includes(k), k);
+  assert.equal(generateRecipe('a cozy laundromat at midnight').sky.time, 'night');
 });
 
 test('every catalog entry has a builder and a default colour', () => {
@@ -93,6 +145,11 @@ test('worlds build headlessly for every theme', () => {
     assert.ok(w.pois.length >= 3, th.id);
     assert.ok(Number.isFinite(w.heightAt(0, 0)));
     w.update(0.016, 1);
+    w.dispose();
+  }
+  for (const p of PLACES) {
+    const w = buildWorld(generateRecipe(`a ${p.words[0]} on the moon`), { quality: 'low' });
+    assert.ok(w.pois.length >= 3, p.id);
     w.dispose();
   }
   const r = generateRecipe('a swamp ruled by frogs');

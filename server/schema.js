@@ -23,6 +23,7 @@ export const WorldSchema = z.object({
     roughness: z.number().describe('0 to 1, small bumps'),
     ground: z.enum(GROUNDS),
     water: z.enum(WATERS),
+    road: z.boolean().describe('a road runs past the spawn point (diners, gas stations, motels, suburbs...)'),
   }),
   sky: z.object({ time: z.enum(TIMES), weather: z.enum(WEATHERS), clouds: z.number().describe('0 to 1') }),
   ambience: z.array(z.enum(AMBIENCES)).describe('1-3 ambient sound beds'),

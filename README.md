@@ -60,6 +60,8 @@ GitHub Pages only serves static files, so the AI server has to run somewhere els
 
 ## How it works
 
+The built-in generator reads a sentence in layers and combines all of them: a **setting** (the moon, a swamp, under the sea, the suburbs: 38 of them), up to three **places** (a laundromat, a diner, a gas station, a school: 58 of them, each with its own building, props, staff and jokes), creatures and whoever rules them, moods, colours, weather, and any objects you name. "A laundromat on the moon" gets a laundromat, washing machines and lost socks among the craters.
+
 A sentence becomes a **recipe**: one JSON object with a palette, terrain, sky, weather, ambience, props picked from a built-in kit, landmarks with signs, and locals with lines. Every recipe (from the AI, the keyword generator, a saved world or a share link) passes through `sanitizeRecipe()` before it is built, and the same recipe always builds the same world.
 
 ```
