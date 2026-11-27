@@ -1,0 +1,47 @@
+// The hand-made test world: written by hand as a recipe, so it exercises the
+// same pipeline every generated world goes through.
+export const SAMPLE_WORLD = {
+  v: 1,
+  seed: 20261127,
+  source: 'handmade',
+  sentence: 'a quiet meadow where nothing has happened since Tuesday',
+  name: 'Pebblewick Meadow',
+  intro: 'A meadow of moderate importance. The windmill turns out of habit. Please keep to the grass, which is everywhere.',
+  welcome: 'Welcome to Pebblewick Meadow. Population: some. Nothing has happened since Tuesday.',
+  medium: 'air',
+  palette: {
+    sky: '#4e9fe3', horizon: '#cfe7f3', ground: '#7db357', ground2: '#a5c868', rock: '#8f8b84',
+    water: '#4a9cc8', foliage: '#4c9444', accent: '#d2604a',
+  },
+  terrain: { shape: 'hills', height: 0.35, roughness: 0.45, ground: 'grass', water: 'lake' },
+  sky: { time: 'day', weather: 'clear', clouds: 0.55 },
+  ambience: ['birds', 'wind'],
+  scatter: [
+    { prop: 'tree_round', density: 0.65 },
+    { prop: 'tree_pine', density: 0.3 },
+    { prop: 'bush', density: 0.5 },
+    { prop: 'grass', density: 0.8 },
+    { prop: 'flower', density: 0.55, tint: '#f2c94c' },
+    { prop: 'rock', density: 0.4 },
+    { prop: 'reed', density: 0.7 },
+    { prop: 'lily_pad', density: 0.6 },
+    { prop: 'fence', density: 0.25 },
+    { prop: 'lamp_post', density: 0.2 },
+    { prop: 'bench', density: 0.3 },
+  ],
+  landmarks: [
+    { kind: 'windmill', name: 'The Windmill', sign: 'THE WINDMILL. It mills nothing. It is not asked to.', scale: 1 },
+    { kind: 'fountain', name: 'The Fountain of Mild Interest', sign: 'Coins thrown in this fountain will be kept.', scale: 1 },
+    { kind: 'tower', name: 'Lookout Tower', sign: 'LOOKOUT TOWER. Nobody has looked out of it since Tuesday.', scale: 1 },
+    { kind: 'cottage', name: 'The Caretaker’s Cottage', sign: 'CARETAKER’S COTTAGE. The caretaker is also out.', scale: 1 },
+    { kind: 'arch', name: 'The Arch to Nowhere', sign: 'You may walk through the arch. You will still be here.', scale: 1 },
+  ],
+  locals: [
+    { name: 'Gordo Ploom', role: 'retired pebble', species: 'blob', color: '#d6c7a1', accent: '#7c6a48', hat: 'none', size: 0.9,
+      lines: ['I was a pebble once. Then I got bored.', 'Tuesday was something, wasn’t it.', 'The windmill and I don’t speak.'] },
+    { name: 'Mrs. Ferrule', role: 'fountain inspector', species: 'bird', color: '#f2a25c', accent: '#6b3d1f', hat: 'top', size: 1.0,
+      lines: ['The fountain passed inspection. Barely.', 'Please don’t throw coins. I have to count them.', 'I inspect. That is the whole job.'] },
+    { name: 'Tobble', role: 'lookout (off duty)', species: 'frog', color: '#7fc46a', accent: '#2f5e2a', hat: 'beanie', size: 0.8,
+      lines: ['I’m on break. I’ve been on break since Tuesday.', 'From the tower you can see the meadow. Same as here.', 'Ribbit. Sorry. Reflex.'] },
+  ],
+};
