@@ -26,7 +26,7 @@ export class Hud {
   }
 
   setFound(n, total) {
-    this.el.found.textContent = total ? `${n} of ${total} places found` : '';
+    this.el.found.textContent = total ? `${n}/${total} places found` : '';
   }
 
   toast(parts, ms = 3200) {

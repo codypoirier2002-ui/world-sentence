@@ -3,6 +3,9 @@ import * as THREE from 'three';
 import { Engine, IS_TOUCH } from './engine/engine.js';
 import { Hud } from './ui/hud.js';
 import { Sound } from './engine/audio.js';
+import { GalleryView } from './ui/gallery.js';
+import { gallery, newId } from './store.js';
+import { shareLink, decodeRecipe, readHashPayload } from './share.js';
 import { buildWorld } from './engine/world.js';
 import { playBuildSequence, hideBuild } from './ui/building.js';
 import { SAMPLE_WORLD } from './worlds/sample.js';
@@ -52,17 +55,72 @@ export class App {
     soundBtn.classList.toggle('off', this.sound.muted);
     soundBtn.addEventListener('click', () => { this.sound.unlock(); this.sound.setMuted(!this.sound.muted); soundBtn.classList.toggle('off', this.sound.muted); });
     $('hud-time').addEventListener('click', () => this.cycleTime());
+    $('hud-share').addEventListener('click', () => this.share());
+    this.galleryView = new GalleryView({ onOpen: (e) => this.openSaved(e), onClose: () => this.refreshCount() });
+    this.els.openGallery.addEventListener('click', () => this.galleryView.show());
+    this.refreshCount();
+    window.addEventListener('hashchange', () => this.openFromHash());
     this.raycaster = new THREE.Raycaster();
     this.engine.controls.onTap = (x, y) => this.interact(x, y);
     this.engine.onFrame((dt, t) => this.frame(dt, t));
     this.current = null;
     this.busy = false;
+    let saveTimer = 0;
+    this.onRecipeChanged = () => { clearTimeout(saveTimer); saveTimer = setTimeout(() => this.saveNow(), 800); };
+    window.addEventListener('pagehide', () => this.saveNow());
     this._wireTitle();
     this.els.hudMenu.addEventListener('click', () => this.toTitle());
     this.els.introGo.addEventListener('click', () => this.startWalking());
-    // backdrop for the title screen
+    // backdrop for the title screen (or straight into a shared world)
     this.showBackdrop(SAMPLE_WORLD);
     checkAI().then((st) => this.showAIChip(st));
+    this.openFromHash();
+  }
+
+  refreshCount() {
+    const n = gallery.count();
+    this.els.galleryCount.textContent = n ? String(n) : '';
+  }
+
+  async openFromHash() {
+    const payload = readHashPayload();
+    if (!payload || this.busy) return;
+    try {
+      const shared = sanitizeRecipe(await decodeRecipe(payload));
+      const existing = gallery.list().find((e) => e.recipe.seed === shared.seed && e.recipe.name === shared.name);
+      if (existing) this.openSaved(existing);
+      else this.openRecipe(shared, { shared: true });
+    } catch {
+      this.els.note.textContent = 'That world link didn\u2019t work. It may have been cut short when it was copied.';
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+  }
+
+  openSaved(entry) {
+    this.openRecipe(entry.recipe, { saved: entry });
+  }
+
+  saveNow() {
+    const cur = this.current;
+    if (!cur?.id) return;
+    gallery.update(cur.id, { recipe: cur.recipe, name: cur.recipe.name, found: [...cur.found], total: cur.world.pois.length });
+  }
+
+  async share() {
+    const cur = this.current;
+    if (!cur) return;
+    let url;
+    try { url = await shareLink(cur.recipe); } catch { this.hud.toast(['Could not make a link for this world.']); return; }
+    const title = cur.recipe.name;
+    if (navigator.share && IS_TOUCH) {
+      try { await navigator.share({ title, text: `${title}: ${cur.recipe.sentence}`, url }); return; } catch (e) { if (e?.name === 'AbortError') return; }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      this.hud.toast(['Link copied. Anyone who opens it gets ', title, '.']);
+    } catch {
+      window.prompt('Copy this link to share the world:', url);
+    }
   }
 
   showAIChip(st) {
@@ -138,20 +196,31 @@ export class App {
     }
   }
 
-  openRecipe(input, { viaBuild = false } = {}) {
+  openRecipe(input, { viaBuild = false, saved = null, shared = false } = {}) {
     const recipe = sanitizeRecipe(input);
     this.els.title.classList.remove('show');
+    this.galleryView?.el.classList.remove('show');
     const world = buildWorld(recipe, { quality: this.engine.quality });
     this.engine.setWorld(world);
     this.engine.walk(false);
-    this.current = { recipe, world, found: new Set(), hinted: false };
+    this.current = { recipe, world, found: new Set(saved?.found || []), hinted: !!saved, id: saved?.id || null };
+    if (!saved && recipe.source !== 'handmade') {
+      this.current.id = newId();
+      gallery.save({ id: this.current.id, name: recipe.name, sentence: recipe.sentence, source: recipe.source, createdAt: Date.now(), recipe, found: [], total: world.pois.length, received: shared || undefined });
+      this.refreshCount();
+    }
     hideBuild(this.els.building);
-    this.showIntro(recipe, world);
+    this.showIntro(recipe, world, saved ? 'welcome back to' : shared ? 'someone sent you to' : 'you have arrived in');
+    // a thumbnail for the gallery, taken from the slow orbit behind the intro card
+    if (this.current.id && !saved?.thumb) {
+      const id = this.current.id;
+      setTimeout(() => { if (this.current?.id === id) { const thumb = this.engine.snapshot(); if (thumb) gallery.update(id, { thumb }); } }, 700);
+    }
   }
 
-  showIntro(recipe, world) {
+  showIntro(recipe, world, eyebrow = 'you have arrived in') {
     const { introName, introText, introFacts, introHint, intro, introEyebrow } = this.els;
-    introEyebrow.textContent = 'you have arrived in';
+    introEyebrow.textContent = eyebrow;
     introName.textContent = recipe.name;
     introText.textContent = recipe.intro;
     introFacts.replaceChildren(...[
@@ -267,6 +336,9 @@ export class App {
   }
 
   toTitle() {
+    this.saveNow();
+    if (readHashPayload()) history.replaceState(null, '', window.location.pathname + window.location.search);
+    this.refreshCount();
     this.sound.stopWorld();
     this.hud.hideBubble();
     this.hud.hideSign();
