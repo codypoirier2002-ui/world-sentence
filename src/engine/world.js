@@ -202,8 +202,8 @@ export function buildWorld(recipe, { quality = 'high' } = {}) {
   {
     const yaw = placed.length ? Math.atan2(-placed[0].x, -placed[0].z) : 0;
     const fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = Math.cos(yaw), rz = -Math.sin(yaw);
-    const wx = fx * 4.2 - rx * 2.6, wz = fz * 4.2 - rz * 2.6;
-    const post = makeSignPost({ text: recipe.welcome, title: recipe.name, x: wx, y: terrain.heightAt(wx, wz), z: wz, ry: Math.atan2(-wx, -wz) + 0.35, wood });
+    const wx = fx * 6 - rx * 3.8, wz = fz * 6 - rz * 3.8;
+    const post = makeSignPost({ text: recipe.welcome, title: recipe.name, x: wx, y: terrain.heightAt(wx, wz), z: wz, ry: Math.atan2(-wx, -wz), wood });
     group.add(post.group);
     disposables.push(post.group.userData.dispose);
     colliders.add(wx, wz, 0.35);

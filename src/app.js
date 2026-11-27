@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { Engine, IS_TOUCH } from './engine/engine.js';
 import { Hud } from './ui/hud.js';
+import { Sound } from './engine/audio.js';
 import { buildWorld } from './engine/world.js';
 import { playBuildSequence, hideBuild } from './ui/building.js';
 import { SAMPLE_WORLD } from './worlds/sample.js';
@@ -41,6 +42,16 @@ export class App {
     };
     this.engine = new Engine($('scene'), { joyBase: $('joy'), joyKnob: $('joy-knob'), crosshair: $('crosshair') });
     this.hud = new Hud();
+    this.sound = new Sound();
+    const unlock = () => this.sound.unlock();
+    window.addEventListener('pointerdown', unlock, { passive: true });
+    window.addEventListener('keydown', unlock, { passive: true });
+    this.engine.controls.onStep = (swimming) => this.sound.step(swimming);
+    this.engine.onLightning = () => setTimeout(() => this.sound.thunder(), 400 + Math.random() * 1400);
+    const soundBtn = $('hud-sound');
+    soundBtn.classList.toggle('off', this.sound.muted);
+    soundBtn.addEventListener('click', () => { this.sound.unlock(); this.sound.setMuted(!this.sound.muted); soundBtn.classList.toggle('off', this.sound.muted); });
+    $('hud-time').addEventListener('click', () => this.cycleTime());
     this.raycaster = new THREE.Raycaster();
     this.engine.controls.onTap = (x, y) => this.interact(x, y);
     this.engine.onFrame((dt, t) => this.frame(dt, t));
@@ -164,6 +175,20 @@ export class App {
     this.hud.setWorld(this.current?.recipe.name || '');
     this.hud.setFound(this.current.found.size, this.current.world.pois.length);
     this.engine.walk(true);
+    this.sound.unlock();
+    this.sound.startWorld(this.current.recipe);
+  }
+
+  cycleTime() {
+    const cur = this.current;
+    if (!cur) return;
+    const order = ['dawn', 'day', 'dusk', 'night'];
+    const next = order[(order.indexOf(cur.recipe.sky.time) + 1) % order.length];
+    cur.recipe.sky.time = next;
+    this.engine.applyAtmosphere(cur.recipe);
+    this.sound.startWorld(cur.recipe);
+    this.hud.toast(['It is now ', next, '.'], 1600);
+    this.onRecipeChanged?.();
   }
 
   // ---------------------------------------------------------------- interaction
@@ -229,6 +254,7 @@ export class App {
       if (cur.found.has(poi.name) || Math.hypot(p.x - poi.x, p.z - poi.z) > poi.r + 7) continue;
       cur.found.add(poi.name);
       this.hud.setFound(cur.found.size, w.pois.length);
+      this.sound.found();
       if (cur.found.size === w.pois.length) {
         this.hud.toast(['Found ', poi.name, `. That\u2019s everything in ${cur.recipe.name}. Nothing happens. Well done.`], 5200);
       } else this.hud.toast(['Found ', poi.name, ` (${cur.found.size} of ${w.pois.length})`]);
@@ -241,6 +267,7 @@ export class App {
   }
 
   toTitle() {
+    this.sound.stopWorld();
     this.hud.hideBubble();
     this.hud.hideSign();
     this.engine.walk(false);

@@ -7,7 +7,7 @@ const TIMES = {
   dawn:  { elev: 12, sun: '#ffc39a', sunI: 2.2, hemiI: 1.25, top: '#7c8fd0', hor: '#ffb48a', k: 0.45, glow: 0.9 },
   day:   { elev: 58, sun: '#fff4e2', sunI: 2.7, hemiI: 1.45, top: null, hor: null, k: 0, glow: 0.5 },
   dusk:  { elev: 7,  sun: '#ff935e', sunI: 1.9, hemiI: 1.1, top: '#3d3f8f', hor: '#ff8457', k: 0.5, glow: 1.0 },
-  night: { elev: 38, sun: '#a9bcff', sunI: 0.65, hemiI: 0.62, top: '#05081a', hor: '#1a2350', k: 0.78, glow: 0.35 },
+  night: { elev: 38, sun: '#b4c4ff', sunI: 0.95, hemiI: 1.0, top: '#070b22', hor: '#1f2a5c', k: 0.78, glow: 0.35 },
 };
 
 const FOG = {
@@ -166,7 +166,7 @@ export class Sky {
       hor.copy(col(pal.horizon));
       bot.copy(hor).multiplyScalar(0.7);
       fogNear = Math.min(fogNear, 8); fogFar = Math.min(fogFar, 72);
-      stars = 0; glow = 0; sunSize = 2; sunI = 1.1; hemiI = 1.15;
+      stars = 0; glow = 0; sunSize = 2; sunI = 1.2; hemiI = 1.4;
       dir.set(0.25, 1, 0.15).normalize();
       sunColor = new THREE.Color(pal.glow || '#ffe2b8');
     } else if (medium === 'space') {
@@ -197,6 +197,7 @@ export class Sky {
     this.baseSunI = sunI;
     this.sun.position.copy(dir).multiplyScalar(80);
     this.hemi.color.copy(top).lerp(col('#ffffff'), 0.55);
+    if (recipe.sky.time === 'night' && medium !== 'cavern') this.hemi.color.set('#7482c4');
     this.hemi.groundColor.copy(col(pal.ground)).multiplyScalar(0.55);
     this.hemi.intensity = hemiI;
     this.baseHemiI = hemiI;

@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { Sky } from './sky.js';
 import { Controls } from './controls.js';
+import { Weather } from './weather.js';
 
 export const IS_TOUCH = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
 
@@ -23,6 +24,9 @@ export class Engine {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(IS_TOUCH ? 72 : 68, 1, 0.1, 900);
     this.sky = new Sky(this.scene);
+    this.weather = new Weather(this.scene, this.quality);
+    this.onLightning = null;
+    this._nextFlash = 0;
     this.controls = new Controls(canvas, this.camera, ui);
     this.world = null;
     this.mode = 'orbit'; // 'orbit' (title backdrop) | 'walk'
@@ -57,9 +61,15 @@ export class Engine {
     this.world = world;
     if (world) {
       this.scene.add(world.group);
-      this.sky.apply(world.recipe);
-      this.renderer.setClearColor(this.sky.horizon || 0x000000, 1);
+      this.applyAtmosphere(world.recipe);
     }
+  }
+
+  applyAtmosphere(recipe) {
+    this.sky.apply(recipe);
+    this.weather.apply(recipe, this.world);
+    this.renderer.setClearColor(this.sky.horizon || 0x000000, 1);
+    this._nextFlash = this.time + 4 + Math.random() * 6;
   }
 
   walk(on) {
@@ -107,6 +117,12 @@ export class Engine {
     else this._orbit(dt);
     if (this.world) this.world.update(dt, this.time, this.camera);
     this.sky.update(dt, this.time, this.camera, this.renderer.getPixelRatio());
+    this.weather.update(this.time, this.camera, this.renderer);
+    if (this.weather.kind === 'storm' && this.time > this._nextFlash) {
+      this._nextFlash = this.time + 6 + Math.random() * 10;
+      this.sky.lightning();
+      this.onLightning?.();
+    }
     for (const fn of this.listeners) fn(dt, this.time);
     this.renderer.render(this.scene, this.camera);
     this._adapt(dt, this.time);
