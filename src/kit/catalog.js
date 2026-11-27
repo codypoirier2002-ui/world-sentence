@@ -146,6 +146,8 @@ export const SPECIES = {
   sprout: 'walking plant, flower or vegetable',
 };
 
+export const CRITTER_VARIANTS = ['cat', 'dog', 'rabbit', 'mouse', 'pig', 'cow', 'sheep', 'lizard', 'turtle'];
+
 export const HATS = ['none', 'top', 'crown', 'party', 'beanie', 'wizard', 'chef', 'helmet', 'cap', 'cowboy', 'bow', 'halo', 'antenna', 'horns', 'flower', 'pirate', 'hardhat'];
 
 export const SHAPES = {

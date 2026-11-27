@@ -1,0 +1,20 @@
+# Cloudflare Worker for the AI server (optional; any Node host works too).
+#   npx wrangler deploy -c server/wrangler.toml
+#   npx wrangler secret put ANTHROPIC_API_KEY -c server/wrangler.toml
+name = "world-sentence-api"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+MODEL = "claude-haiku-5-5"
+DAILY_CALL_CAP = "300"
+PER_IP_DAILY_CAP = "40"
+# The GitHub Pages site that may call this API (localhost is always allowed).
+ALLOWED_ORIGINS = "https://codypoirier2002-ui.github.io"
+
+# For an exact daily cap across Cloudflare instances, create a KV namespace
+# (npx wrangler kv namespace create USAGE) and uncomment:
+# [[kv_namespaces]]
+# binding = "USAGE"
+# id = "<the id wrangler prints>"

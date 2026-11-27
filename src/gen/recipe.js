@@ -1,8 +1,7 @@
 // The world recipe: one JSON object that fully describes a world. Every recipe,
 // whether hand-made, keyword-generated, from the AI or from a shared link,
 // passes through sanitizeRecipe() before it is built. It never throws.
-import { SCATTER, LANDMARK_KINDS, SPECIES, HATS, SHAPES, GROUNDS, WATERS, TIMES, WEATHERS, MEDIUMS, AMBIENCES } from '../kit/catalog.js';
-import { CRITTER_VARIANTS } from './lexicon.js';
+import { SCATTER, LANDMARK_KINDS, SPECIES, HATS, SHAPES, GROUNDS, WATERS, TIMES, WEATHERS, MEDIUMS, AMBIENCES, CRITTER_VARIANTS } from '../kit/catalog.js';
 
 export const RECIPE_VERSION = 1;
 export const LIMITS = { sentence: 120, name: 48, intro: 360, welcome: 160, landmarkName: 48, sign: 150, localName: 36, role: 44, line: 150, lines: 12 };

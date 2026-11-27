@@ -4,6 +4,8 @@ import { buildWorld } from './engine/world.js';
 import { playBuildSequence, hideBuild } from './ui/building.js';
 import { SAMPLE_WORLD } from './worlds/sample.js';
 import { generateRecipe } from './gen/generate.js';
+import { checkAI, aiStatus, aiWorld } from './gen/ai.js';
+import { hashString } from './gen/rng.js';
 import { sanitizeRecipe } from './gen/recipe.js';
 
 const $ = (id) => document.getElementById(id);
@@ -43,6 +45,15 @@ export class App {
     this.els.introGo.addEventListener('click', () => this.startWalking());
     // backdrop for the title screen
     this.showBackdrop(SAMPLE_WORLD);
+    checkAI().then((st) => this.showAIChip(st));
+  }
+
+  showAIChip(st) {
+    const chip = $('ai-chip');
+    if (!chip) return;
+    chip.textContent = st.ai ? (st.remaining > 0 ? 'AI worlds on' : 'AI resting until tomorrow') : 'offline worlds';
+    chip.title = st.ai ? 'Worlds are designed by Claude' : 'Worlds are built by the built-in generator';
+    chip.classList.toggle('on', st.ai && st.remaining > 0);
   }
 
   _wireTitle() {
@@ -80,7 +91,17 @@ export class App {
     this.takes = this.takes || new Map();
     const variant = this.takes.get(key) ?? 0;
     this.takes.set(key, variant + 1);
-    return generateRecipe(sentence, { variant });
+    const base = generateRecipe(sentence, { variant });
+    this.buildNote = '';
+    if (!aiStatus().ai) return base;
+    try {
+      const ai = await aiWorld(sentence);
+      return mergeAI(ai, base, hashString(`${sentence}:${Date.now()}`));
+    } catch (err) {
+      this.buildNote = err.capped ? err.message : err.refused ? 'The AI passed on this one, so it was built offline.' : `${err.message} Built offline instead.`;
+      this.showAIChip(aiStatus());
+      return base;
+    }
   }
 
   async buildFromSentence(sentence) {
@@ -120,7 +141,10 @@ export class App {
       `${world.pois.length} points of interest`,
       `${(recipe.locals || []).length} locals`,
       `${recipe.sky.time}, ${recipe.sky.weather}`,
+      recipe.source === 'ai' ? 'designed by Claude' : recipe.source === 'handmade' ? 'hand-made' : 'built offline',
     ].map((t) => Object.assign(document.createElement('li'), { textContent: t })));
+    if (this.buildNote) introFacts.append(Object.assign(document.createElement('li'), { textContent: this.buildNote, className: 'warn' }));
+    this.buildNote = '';
     introHint.textContent = IS_TOUCH
       ? 'Left thumb to walk, right thumb to look. Tap things to talk to them.'
       : 'WASD to walk, click to look around with the mouse. Click things to talk to them.';
@@ -142,4 +166,19 @@ export class App {
     this.els.title.classList.add('show');
     this.els.note.textContent = '';
   }
+}
+
+// Fill any gaps in an AI recipe from the offline one, so a world always has
+// 3-5 landmarks and locals even if the model skimped.
+export function mergeAI(ai, base, seed) {
+  const r = sanitizeRecipe({ ...ai, seed, source: 'ai' }, base);
+  for (const [k, min] of [['landmarks', 3], ['locals', 3]]) {
+    for (const extra of base[k]) {
+      if (r[k].length >= min) break;
+      if (k === 'landmarks' && r[k].some((x) => x.kind === extra.kind)) continue;
+      r[k].push(extra);
+    }
+  }
+  if (r.scatter.length < 4) for (const s of base.scatter) if (r.scatter.length < 6 && !r.scatter.some((x) => x.prop === s.prop)) r.scatter.push(s);
+  return r;
 }

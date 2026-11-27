@@ -79,7 +79,7 @@ export const SPECIES_DEFAULT = {
   golem: { c: ['#9a948a', '#8a8f98'], a: '#7fe0ff' }, snowman: { c: ['#f6f8ff'], a: '#ff8a3d' }, sprout: { c: ['#6ab05a', '#8ac04a'], a: '#ff7aa8' },
 };
 
-export const CRITTER_VARIANTS = ['cat', 'dog', 'rabbit', 'mouse', 'pig', 'cow', 'sheep', 'lizard', 'turtle'];
+export { CRITTER_VARIANTS } from '../kit/catalog.js';
 
 // Phrases that change the medium regardless of the setting.
 export const MEDIUM_PHRASES = {
