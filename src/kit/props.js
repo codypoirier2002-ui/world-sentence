@@ -3,6 +3,7 @@
 // P = resolved colours: main (tint or default), foliage, foliage2, trunk, rock,
 // accent, ground, water, glow, metal, wood, stone, plaster.
 import { lighten, darken, mix, shiftHue } from './colors.js';
+import { PROPS2, PROP_MAIN2 } from './props2.js';
 
 const TAU = Math.PI * 2;
 
@@ -574,5 +575,8 @@ export const PROP_MAIN = {
   coin_pile: '#f5c542', satellite_dish: '#e6e6e6', cloud_puff: '#ffffff', balloon: 'accent', floating_lantern: '#ffb35c',
   fish: 'accent', jellyfish: '#ff9ad5', bird: '#3d3f4a', butterfly: 'accent', bat: '#2a2333', firefly: '#fff27a',
 };
+
+Object.assign(PROPS, PROPS2);
+Object.assign(PROP_MAIN, PROP_MAIN2);
 
 export { mix };

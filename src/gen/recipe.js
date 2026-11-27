@@ -48,6 +48,7 @@ export function sanitizeRecipe(input, fallback = null) {
     roughness: num(t.roughness, 0, 1, num(ft.roughness, 0, 1, 0.4)),
     ground: pick(t.ground, GROUNDS, pick(ft.ground, GROUNDS, 'grass')),
     water: pick(t.water, WATERS, pick(ft.water, WATERS, 'none')),
+    road: typeof t.road === 'boolean' ? t.road : ft.road === true,
   };
 
   const s = r.sky && typeof r.sky === 'object' ? r.sky : {};

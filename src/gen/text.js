@@ -126,6 +126,7 @@ const WELCOME = [
   'Welcome to {name}. Please wipe your feet. On what is your business.',
 ];
 export const welcome = (rng, ctx) => fill(rng.pick(WELCOME), ctx, rng);
+export const introTail = (rng, ctx) => fill(rng.pick(INTRO_TAIL), ctx, rng);
 
 // ------------------------------------------------------------------ landmarks
 export const KIND_WORD = {
@@ -136,6 +137,15 @@ export const KIND_WORD = {
   rocket: 'Rocket', ufo: 'Saucer', radio_dish: 'Listening Dish', portal: 'Portal', stone_circle: 'Stones', totem: 'Totem', campfire: 'Campfire',
   well: 'Well', big_top: 'Big Top', skyscraper: 'Tower', volcano: 'Volcano', igloo: 'Igloo', pagoda: 'Pagoda', crystal_spire: 'Spire',
   skeleton: 'Bones', gazebo: 'Bandstand', hot_air_balloon: 'Balloon', billboard: 'Billboard',
+  laundromat: 'Laundromat', bakery: 'Bakery', cafe: 'Café', pizzeria: 'Pizzeria', ice_cream_shop: 'Creamery', donut_shop: 'Donuts',
+  burger_joint: 'Burgers', pharmacy: 'Pharmacy', dentist: 'Dental', pet_shop: 'Pet Shop', toy_shop: 'Toy Shop', bookshop: 'Books',
+  florist: 'Florist', hardware_store: 'Hardware', arcade: 'Arcade', corner_shop: 'Corner Shop', post_office: 'Post Office', gym: 'Gym',
+  tire_shop: 'Tyres', popcorn_stand: 'Popcorn Stand', barber: 'Barber', bank: 'Bank', cinema: 'Cinema', diner: 'Diner',
+  gas_station: 'Gas Station', motel: 'Motel', parking_booth: 'Car Park', school: 'School', playground: 'Playground', hospital: 'Hospital',
+  supermarket: 'Supermarket', big_house: 'House', apartment: 'Apartments', bus_stop: 'Bus Stop', car_wash: 'Car Wash', pool: 'Pool',
+  train: 'Station', airplane: 'Airfield', chapel: 'Chapel', museum: 'Museum', fire_station: 'Fire Station', water_tower: 'Water Tower',
+  sports_field: 'Pitch', pier: 'Pier', bowling_alley: 'Lanes', giant_couch: 'Sofa', giant_tv: 'Television', giant_fridge: 'Fridge',
+  giant_stove: 'Stove', giant_duck: 'Duck', giant_sock: 'Sock', giant_washer: 'Washing Machine',
 };
 const LM_ADJ = ['Great', 'Lesser', 'Old', 'New', 'Mostly Original', 'Second-Best', 'Slightly Famous', 'Unremarkable', 'Grand', 'Lonely', 'Former', 'Leaning', 'Municipal', 'Official', 'Disputed', 'Tolerable', 'Reasonable', 'Surprisingly Large', 'Historic', 'Almost Finished'];
 
@@ -179,7 +189,7 @@ const SIGN_GENERIC = [
   '{NAME}. Voted most {superlative} thing in {place}, by {n} {speciesPl}.',
   '{NAME}. Please leave it exactly as confused as you found it.',
   '{NAME}. Lost property: one {lost}. If found, keep it.',
-  '{NAME}. Formerly {formerly}. Still a bit {formerly}, honestly.',
+  '{NAME}. Formerly {formerly}. Some of it still is.',
   '{NAME}. If you can read this, you are standing next to {NAME}.',
   '{NAME}. Enjoy responsibly.',
 ];
@@ -315,3 +325,74 @@ export function localLines(rng, ctx, isRuler, count = 3) {
   if (isRuler && !out.some((l) => RULER_SELF.some((r) => l.startsWith(r.slice(0, 12))))) out[0] = fill(rng.pick(RULER_SELF), c, rng);
   return out;
 }
+
+// ------------------------------------------------------------------ places x settings
+const SMALL = new Set(['a', 'an', 'the', 'of', 'on', 'in', 'at', 'by', 'to', 'for', 'and', 'under', 'inside', 'near', 'with', 'from', 'over', 'into', 'up', 'down']);
+export const titlePhrase = (s, mid = false) => s.split(' ').map((w, i) => ((i > 0 || mid) && SMALL.has(w.toLowerCase()) ? w.toLowerCase() : cap(w))).join(' ');
+
+// The name of a place's main building: "Lunar Launderette", "Suds & Sons".
+export function heroName(rng, place, ctx) {
+  const noun = rng.pick(place.nouns), pre = rng.pick(place.pre), suf = rng.pick(place.suf);
+  const opts = [
+    () => `${pre} ${noun}`,
+    () => (/^[A-Za-z]+$/.test(pre) ? `${cap(pre.toLowerCase())}${suf} ${noun}` : `${pre} ${noun}`),
+    () => `${pre} & Sons`,
+    () => `${pre}${rng.pick(['-O-Rama', ' Express', ' Deluxe', ' Plus', ' 24'])}`,
+  ];
+  if (ctx.settingAdj) opts.push(() => `${rng.pick(ctx.settingAdj)} ${noun}`, () => `${rng.pick(ctx.settingAdj)} ${noun}`);
+  if (ctx.rulerShort) opts.push(() => `${ctx.rulerShort}’s ${noun}`);
+  let n = rng.pick(opts)();
+  if (n.length > 40) n = `${pre} ${noun}`;
+  return n;
+}
+
+// World names when there's both a place and a setting.
+export function comboWorldName(rng, place, setting, ctx) {
+  const noun = rng.pick(place.nouns), sPre = rng.pick(setting.pre), pSuf = rng.pick(place.suf), sPlace = rng.pick(setting.place);
+  const opts = [
+    () => `The ${noun} ${titlePhrase(ctx.where, true)}`,
+    () => `${rng.pick(setting.adj)} ${noun}`,
+    () => (/^[A-Za-z]+$/.test(sPre) ? `${cap(sPre.toLowerCase())}${pSuf} ${sPlace}` : `${sPre} ${sPlace}`),
+    () => `${rng.pick(place.pre)} ${sPlace}`,
+    () => ctx.hero,
+  ];
+  let n = rng.pick(opts)();
+  const words = n.toLowerCase().split(/[\s-]+/);
+  if (n.length > 44 || new Set(words).size < words.length) n = ctx.hero || `${rng.pick(setting.adj)} ${noun}`;
+  return n;
+}
+
+// World names for a place on its own: "Sudsville Laundromat", "The Diner on Elm Street".
+export function placeWorldName(rng, place, ctx) {
+  const noun = rng.pick(place.nouns), pre = rng.pick(place.pre), suf = rng.pick(place.suf);
+  const street = `${rng.pick(['Elm', 'Maple', 'Station', 'High', 'Mill', 'Church', 'Bridge', 'Canal', 'Orchard', 'Market'])} ${rng.pick(['Street', 'Road', 'Lane', 'Avenue', 'Way'])}`;
+  const opts = [
+    () => (/^[A-Za-z]+$/.test(pre) ? `${cap(pre.toLowerCase())}${suf} ${noun}` : `${pre} ${noun}`),
+    () => `The ${noun} on ${street}`,
+    () => `${pre} ${noun}`,
+    () => ctx.hero,
+  ];
+  if (ctx.key) opts.push(() => `The ${cap(ctx.key)} ${noun}`);
+  let n = rng.pick(opts)();
+  if (n.length > 44) n = ctx.hero;
+  return n;
+}
+
+export const COMBO_TAILS = [
+  'It is a perfectly ordinary {placeNoun}, apart from being {where}.',
+  'Nobody remembers why there is a {placeNoun} {where}. Business is steady.',
+  'It is the only {placeNoun} {where}, which the staff mention often.',
+  'Opening a {placeNoun} {where} was described at the time as brave.',
+  'Everything takes a little longer {where}, especially the {placeThing}.',
+];
+export const COMBO_LINES = [
+  'We opened {where} because the rent was cheaper. It was not cheaper.',
+  'Customers ask why there’s a {placeNoun} {where}. Customers ask too many questions.',
+  'Everything takes longer {where}. Especially the {placeThing}.',
+  'There is no other {placeNoun} {where}. We checked. Twice.',
+  'Being {where} has been great for business. We have no business, but it’s been great.',
+  'My mum said I’d never work {where}. Look at me now.',
+  'The commute is fine. It’s mostly {where}.',
+];
+
+export const pickFilled = (rng, pool, ctx) => fill(rng.pick(pool), ctx, rng);

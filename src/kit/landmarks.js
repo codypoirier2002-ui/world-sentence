@@ -5,6 +5,7 @@
 // A.billboard(w, h, [x,y,z]) asks for the sign text to be painted on a board.
 import { Geo } from './builder.js';
 import { lighten, darken, shiftHue } from './colors.js';
+import { BUILDINGS, BUILDING_MAIN } from './buildings.js';
 
 const TAU = Math.PI * 2;
 
@@ -293,7 +294,7 @@ export const LANDMARKS = {
     g.box(5.4, 2.2, 0.1, P.glow, -0.5, 0.6, 2.26, { glow: true });
     g.box(1.1, 2.6, 0.12, darken(P.main, 0.45), 2.6, 0, 2.27);
     for (let i = 0; i < 7; i++) g.box(1.0, 0.12, 1.6, i % 2 ? P.accent : '#fbf6ec', -3 + i, 3.25, 2.9, { rx: 0.45 });
-    A.billboard(5.6, 0.9, [0, 3.95, 2.3]);
+    A.billboard(5.6, 0.9, [0, 3.95, 2.3], 'name');
     return { r: 3.4, h: 5.4 };
   },
   escalator(g, r, P) {
@@ -589,3 +590,6 @@ export const LANDMARK_MAIN = {
   skyscraper: 'stone', volcano: 'rock', igloo: '#eef6ff', pagoda: 'accent', crystal_spire: 'accent', skeleton: '#efe6d2',
   gazebo: 'accent', hot_air_balloon: 'accent', billboard: 'metal',
 };
+
+Object.assign(LANDMARKS, BUILDINGS);
+Object.assign(LANDMARK_MAIN, BUILDING_MAIN);
