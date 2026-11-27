@@ -161,6 +161,14 @@ export class Sky {
       fogNear = 2; fogFar = Math.min(fogFar, 58);
       sunI *= 0.8; hemiI *= 1.05; stars = 0; glow = 0.3; sunSize = 2;
       dir.set(0.2, 1, 0.1).normalize();
+    } else if (medium === 'cavern') {
+      top.copy(col(pal.sky)).multiplyScalar(0.6);
+      hor.copy(col(pal.horizon));
+      bot.copy(hor).multiplyScalar(0.7);
+      fogNear = Math.min(fogNear, 8); fogFar = Math.min(fogFar, 72);
+      stars = 0; glow = 0; sunSize = 2; sunI = 1.1; hemiI = 1.15;
+      dir.set(0.25, 1, 0.15).normalize();
+      sunColor = new THREE.Color(pal.glow || '#ffe2b8');
     } else if (medium === 'space') {
       top.copy(col(pal.sky)).multiplyScalar(0.12);
       hor.copy(col(pal.horizon)).multiplyScalar(0.3);
@@ -193,7 +201,7 @@ export class Sky {
     this.hemi.intensity = hemiI;
     this.baseHemiI = hemiI;
 
-    const cloudAmt = medium === 'air' ? (recipe.sky.clouds ?? 0.4) : 0;
+    const cloudAmt = medium === 'air' && !(recipe.terrain.shape === 'islands' && recipe.terrain.water === 'none' && false) ? (recipe.sky.clouds ?? 0.4) : 0;
     const count = Math.round(cloudAmt * 14 + (overcast ? 6 : 0));
     const cc = new THREE.Color('#ffffff').lerp(hor, 0.35);
     if (recipe.sky.time === 'night') cc.multiplyScalar(0.35);

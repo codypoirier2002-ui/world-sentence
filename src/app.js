@@ -3,6 +3,8 @@ import { Engine, IS_TOUCH } from './engine/engine.js';
 import { buildWorld } from './engine/world.js';
 import { playBuildSequence, hideBuild } from './ui/building.js';
 import { SAMPLE_WORLD } from './worlds/sample.js';
+import { generateRecipe } from './gen/generate.js';
+import { sanitizeRecipe } from './gen/recipe.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -67,14 +69,18 @@ export class App {
   }
 
   showBackdrop(recipe) {
-    const world = buildWorld(recipe, { quality: this.engine.quality });
+    const world = buildWorld(sanitizeRecipe(recipe), { quality: this.engine.quality });
     this.engine.setWorld(world);
     this.engine.walk(false);
   }
 
   async makeRecipe(sentence) {
-    // Step 1: every sentence gets the hand-made meadow.
-    return { ...structuredClone(SAMPLE_WORLD), sentence };
+    // Building the same sentence twice gives a new take on it.
+    const key = sentence.trim().toLowerCase();
+    this.takes = this.takes || new Map();
+    const variant = this.takes.get(key) ?? 0;
+    this.takes.set(key, variant + 1);
+    return generateRecipe(sentence, { variant });
   }
 
   async buildFromSentence(sentence) {
@@ -94,7 +100,8 @@ export class App {
     }
   }
 
-  openRecipe(recipe, { viaBuild = false } = {}) {
+  openRecipe(input, { viaBuild = false } = {}) {
+    const recipe = sanitizeRecipe(input);
     this.els.title.classList.remove('show');
     const world = buildWorld(recipe, { quality: this.engine.quality });
     this.engine.setWorld(world);

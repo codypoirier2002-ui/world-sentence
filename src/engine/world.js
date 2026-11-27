@@ -24,7 +24,7 @@ export function resolvePalette(p) {
 
 function propColors(pal, key, tint) {
   const P = { ...pal };
-  P.main = isHex(tint) ? tint : (pal[key] || pal.foliage);
+  P.main = isHex(tint) ? tint : isHex(key) ? key : (pal[key] || pal.foliage);
   return P;
 }
 
@@ -77,6 +77,7 @@ export function buildWorld(recipe, { quality = 'high' } = {}) {
   group.name = 'world';
   const mats = new Materials();
   const animated = [];
+  const critters = [];
   const colliders = new ColliderGrid();
   const segs = quality === 'low' ? 64 : 88;
   const terrain = new Terrain(recipe.terrain, pal, recipe.seed, { segments: segs, medium: recipe.medium });
@@ -121,9 +122,11 @@ export function buildWorld(recipe, { quality = 'high' } = {}) {
     const local = new Geo(rng.fork(`lm${p.index}`).next);
     const P = propColors(pal, LANDMARK_MAIN[p.lm.kind] || 'stone', p.lm.tint);
     const anims = [];
+    let board = null;
     const A = {
       spin: (geo, pivot, axis, speed) => anims.push({ type: 'spin', geo, pivot, axis, speed }),
       bob: (geo, pivot, amp, speed) => anims.push({ type: 'bob', geo, pivot, amp, speed }),
+      billboard: (w, h, at) => { board = { w, h, at }; },
     };
     const info = build(local, rng.fork(`lmb${p.index}`), P, A) || { r: p.rad, h: 6 };
     // face the spawn point
@@ -149,7 +152,10 @@ export function buildWorld(recipe, { quality = 'high' } = {}) {
       group.add(pivot);
       animated.push({ ...a, obj: inner, base: inner.position.clone() });
     }
-    pois.push({ name: p.lm.name, sign: p.lm.sign, kind: p.lm.kind, x: p.x, y: p.y, z: p.z, r: p.rad, h: (info.h || 6) * p.scale, ry });
+    pois.push({
+      name: p.lm.name, sign: p.lm.sign, kind: p.lm.kind, x: p.x, y: p.y, z: p.z, r: p.rad, h: (info.h || 6) * p.scale, ry,
+      scale: p.scale, board, creatureAt: info.creatureAt, creatureScale: info.creatureScale, colors: P,
+    });
   }
   const lmBuilt = lmGeo.build();
   if (lmBuilt.solid) { const m = new THREE.Mesh(lmBuilt.solid, mats.solid); m.matrixAutoUpdate = false; group.add(m); }
@@ -173,6 +179,11 @@ export function buildWorld(recipe, { quality = 'high' } = {}) {
     if (!meta || !build) continue;
     const pr = scRng.fork(entry.prop);
     let count = Math.round(meta.max * Math.max(0, Math.min(1, entry.density ?? 0.5)) * qScale);
+    if (meta.critter) {
+      count = Math.min(count, 40);
+      if (count > 0) critters.push(makeCritters(entry, meta, build, count, pr, propColors(pal, PROP_MAIN[entry.prop] || 'accent', entry.tint), terrain, mats, group));
+      continue;
+    }
     if (meta.place === 'water' || meta.place === 'shore') { if (!hasWater) continue; }
     count = Math.min(count, budget);
     if (count <= 0) continue;
@@ -242,6 +253,7 @@ export function buildWorld(recipe, { quality = 'high' } = {}) {
     update(dt, t) {
       mats.update(t);
       if (terrain.waterMesh) terrain.waterMesh.userData.uniforms.uTime.value = t;
+      for (const c of critters) c.update(dt, t);
       for (const a of animated) {
         if (a.type === 'spin') a.obj.rotation[a.axis] += dt * a.speed;
         else if (a.type === 'bob') a.obj.position.y = a.base.y + Math.sin(t * a.speed) * a.amp;
@@ -252,6 +264,78 @@ export function buildWorld(recipe, { quality = 'high' } = {}) {
       mats.dispose();
       terrain.waterMesh?.material.dispose();
       terrain.mesh?.material.dispose();
+    },
+  };
+}
+
+// Ambient creatures that move by themselves: birds circle, fish swim in loops,
+// butterflies and fireflies flutter, jellyfish drift.
+function makeCritters(entry, meta, build, count, pr, P, terrain, mats, group) {
+  const geo = new Geo(pr.fork('geo').next);
+  build(geo, pr.fork('b'), P);
+  const built = geo.build();
+  const meshes = [];
+  for (const [g, mat] of [[built.solid, mats.solid], [built.glow, mats.glow]]) {
+    if (!g) continue;
+    const im = new THREE.InstancedMesh(g, mat, count);
+    im.frustumCulled = false;
+    im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    group.add(im);
+    meshes.push(im);
+  }
+  const wl = terrain.waterLevel;
+  const kind = meta.critter;
+  const items = [];
+  const groups = kind === 'swim' ? Math.max(1, Math.round(count / 6)) : count;
+  const centers = [];
+  for (let i = 0; i < groups; i++) centers.push([pr.range(-WALK_R * 0.9, WALK_R * 0.9), pr.range(-WALK_R * 0.9, WALK_R * 0.9)]);
+  for (let i = 0; i < count; i++) {
+    const c = centers[i % groups];
+    const cx = c[0] + (kind === 'swim' ? pr.range(-2, 2) : 0), cz = c[1] + (kind === 'swim' ? pr.range(-2, 2) : 0);
+    const ground = Math.max(terrain.heightAt(cx, cz), wl > -1e5 ? wl : -1e9);
+    const lift = pr.range(meta.lift?.[0] ?? 2, meta.lift?.[1] ?? 6);
+    items.push({
+      cx, cz, y0: ground + lift, ph: pr.range(0, Math.PI * 2), s: pr.range(meta.scale[0], meta.scale[1]),
+      R: kind === 'fly' ? pr.range(6, 16) : kind === 'swim' ? pr.range(3, 7) : kind === 'drift' ? pr.range(1, 3) : pr.range(0.8, 2.5),
+      w: (kind === 'fly' ? pr.range(0.25, 0.5) : kind === 'swim' ? pr.range(0.25, 0.45) : pr.range(0.3, 0.8)) * (pr.chance(0.5) ? 1 : -1),
+    });
+  }
+  if (kind === 'swim') { // a school shares a direction
+    for (let i = 0; i < count; i++) { const lead = items[i % groups]; items[i].w = lead.w; items[i].R = lead.R + pr.range(-0.8, 0.8); }
+  }
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), sv = new THREE.Vector3(), pv = new THREE.Vector3();
+  return {
+    update(dt, t) {
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        let x, y, z, ry, sx = it.s, sy = it.s;
+        if (kind === 'flutter') {
+          x = it.cx + Math.sin(t * it.w + it.ph) * it.R + Math.sin(t * 2.1 + it.ph * 3) * 0.4;
+          z = it.cz + Math.cos(t * it.w * 0.8 + it.ph) * it.R + Math.cos(t * 1.7 + it.ph) * 0.4;
+          y = it.y0 + Math.sin(t * 1.3 + it.ph) * 0.5;
+          ry = t * it.w + it.ph;
+          sx = it.s * (0.35 + 0.65 * Math.abs(Math.sin(t * 14 + it.ph)));
+        } else if (kind === 'drift') {
+          x = it.cx + Math.sin(t * 0.12 + it.ph) * it.R;
+          z = it.cz + Math.cos(t * 0.1 + it.ph) * it.R;
+          y = it.y0 + Math.sin(t * 0.6 + it.ph) * 0.8;
+          ry = it.ph;
+          sy = it.s * (0.9 + 0.12 * Math.sin(t * 2.2 + it.ph));
+        } else {
+          const a = it.ph + t * it.w;
+          x = it.cx + Math.cos(a) * it.R; z = it.cz + Math.sin(a) * it.R;
+          y = it.y0 + Math.sin(t * 0.9 + it.ph) * (kind === 'swim' ? 0.4 : 1.2);
+          const dx = -Math.sin(a) * Math.sign(it.w), dz = Math.cos(a) * Math.sign(it.w);
+          ry = Math.atan2(dx, dz);
+          if (kind === 'fly') sx = it.s * (0.55 + 0.45 * Math.abs(Math.sin(t * 6 + it.ph)));
+          else ry += Math.sin(t * 6 + it.ph) * 0.15;
+        }
+        e.set(0, ry, 0);
+        q.setFromEuler(e);
+        m.compose(pv.set(x, y, z), q, sv.set(sx, sy, it.s));
+        for (const im of meshes) im.setMatrixAt(i, m);
+      }
+      for (const im of meshes) im.instanceMatrix.needsUpdate = true;
     },
   };
 }
