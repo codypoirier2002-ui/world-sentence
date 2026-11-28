@@ -21,7 +21,7 @@ import {
 } from './lexicon.js';
 import {
   cap, plural, singular, fill, worldName, intro, welcome, landmarkName, signText, personName, firstName, localLines,
-  RULER_TITLES, heroName, comboWorldName, placeWorldName, COMBO_TAILS, COMBO_LINES, introTail,
+  RULER_TITLES, heroName, comboWorldName, placeWorldName, COMBO_TAILS, COMBO_LINES, introTail, callName,
 } from './text.js';
 import { sanitizeRecipe } from './recipe.js';
 import { mix, shiftHue, lighten, darken, hexToRgb, rgbToHsl, hslToHex } from '../kit/colors.js';
@@ -65,26 +65,70 @@ function detectMedium(tk) {
   return null;
 }
 
+// Generic nouns that name the building of the word before them: in "a
+// dentist's office" or "a pizza shop" the office or shop is the dentist's or
+// the pizzeria, not a second place.
+const HEAD_NOUNS = new Set(['office', 'offices', 'shop', 'shops', 'store', 'stores', 'parlour', 'parlor', 'practice', 'surgery', 'clinic', 'studio', 'place', 'stand', 'stall']);
+
+// What to call a place in a sentence: the viewer's own words when they name a
+// building ("a hair salon", "a parking garage", "a pizza shop"), else its usual
+// name ("barber"). Words that only hint at a place ("bread", "teeth") don't count.
+const BUILDING_ENDS = new Set([...HEAD_NOUNS, 'garage', 'salon', 'stop', 'station', 'alley', 'rink', 'terminal', 'lot', 'park', 'room', 'house', 'hall',
+  'centre', 'center', 'bar', 'joint', 'diner', 'cafe', 'restaurant', 'hospital', 'school', 'bank', 'cinema', 'theater', 'theatre', 'museum', 'library',
+  'mall', 'market', 'supermarket', 'depot', 'yard', 'lodge', 'inn', 'motel', 'hotel', 'arena', 'stadium', 'pool', 'gym', 'chapel', 'church', 'academy',
+  'laboratory', 'lab', 'factory', 'mill', 'farm', 'zoo', 'camp', 'campsite', 'arcade', 'airport', 'bakery', 'pizzeria', 'laundromat', 'launderette',
+  'pharmacy', 'chemist', 'florist', 'bookshop', 'barbershop', 'office', 'kitchen', 'lounge', 'den', 'castle', 'palace', 'cemetery', 'graveyard', 'school']);
+function placeNounFor(p, tk, hit) {
+  if (hit && hit.includes(' ') && BUILDING_ENDS.has(hit.split(' ').pop())) return hit;
+  for (const n of p.nouns.map((x) => x.toLowerCase())) {
+    const at = tk.text.indexOf(` ${n} `);
+    if (at < 0) continue;
+    const next = tk.words[wordIndexAt(tk, at) + n.split(' ').length];
+    return next && HEAD_NOUNS.has(next) ? `${n} ${next}` : n; // "pizza" + "shop"
+  }
+  if (hit && BUILDING_ENDS.has(hit)) return hit; // "office", not "offices"
+  return p.nouns[0].toLowerCase();
+}
+
 // Score every theme or place against the sentence. Multi-word entries
-// ("gas station") are matched as phrases; their words don't count again.
+// ("gas station") are matched as phrases, and their words don't count again,
+// for that entry or any other in the list: "post office" is not also an office,
+// and "parking garage" is not also a garage.
 function scoreList(list, tk) {
-  const scores = [];
+  const phrases = new Map(), taken = new Set(), singleAt = new Map();
   for (const th of list) {
-    let score = 0, first = Infinity, last = -1, hit = null;
-    const used = new Set();
+    const spans = [];
     for (const w of [...th.words, ...(th.phrases || [])].filter((x) => x.includes(' '))) {
       const at = tk.text.indexOf(` ${w} `);
       if (at < 0) continue;
       const i = wordIndexAt(tk, at), n = w.split(' ').length;
-      for (let k = 0; k < n; k++) used.add(i + k);
+      spans.push({ w, i, n });
+      for (let k = 0; k < n; k++) taken.add(i + k);
+    }
+    phrases.set(th, spans);
+  }
+  for (const th of list) {
+    const single = new Set(th.words.filter((x) => !x.includes(' ')));
+    tk.words.forEach((w, i) => {
+      if (taken.has(i) || (!single.has(w) && !single.has(tk.stems[i]))) return;
+      if (!singleAt.has(i)) singleAt.set(i, new Set());
+      singleAt.get(i).add(th);
+    });
+  }
+  const claimedBy = (i) => [...(singleAt.get(i) || [])].concat([...phrases].filter(([, sp]) => sp.some((s) => i >= s.i && i < s.i + s.n)).map(([th]) => th));
+  const scores = [];
+  for (const th of list) {
+    let score = 0, first = Infinity, last = -1, hit = null;
+    for (const { w, i, n } of phrases.get(th)) {
       score += 1.25; first = Math.min(first, i); last = Math.max(last, i + n - 1);
       if (!hit) hit = w;
     }
     const single = new Set(th.words.filter((x) => !x.includes(' ')));
     tk.words.forEach((w, i) => {
-      if (used.has(i)) return;
+      if (taken.has(i)) return;
       const st = tk.stems[i];
       if (!single.has(w) && !single.has(st)) return;
+      if (i > 0 && (HEAD_NOUNS.has(w) || HEAD_NOUNS.has(st)) && claimedBy(i - 1).some((o) => o !== th)) return;
       const weak = WEAK.has(w) || WEAK.has(st);
       score += weak ? 0.5 : 1;
       first = Math.min(first, i); last = Math.max(last, i);
@@ -241,15 +285,29 @@ export function generateRecipe(sentence, { variant = 0 } = {}) {
   // phrases like "under the sea", "on the moon", "inside a whale" decide the medium
   if (med) {
     const want = med.medium;
-    const keep = setting && ((want === 'underwater' && setting.medium === 'underwater') || (want === 'space' && setting.medium === 'space') || (want === 'cavern' && setting.medium === 'cavern') || (want === 'sky' && setting.id === 'sky'));
+    // which enclosed setting the words ask for: inside a volcano, a cave, the sewers, or just indoors
+    const cavern = ['volcano', 'volcanic', 'lava', 'magma'].some((w) => hasWord(tk, w)) ? THEME_BY_ID.magma_chamber : ['cave', 'cavern', 'underground', 'mine', 'grotto', 'subterranean', 'mountain', 'mountains', 'hill'].some((w) => hasWord(tk, w)) ? THEME_BY_ID.cave : ['sewer', 'sewers'].some((w) => hasWord(tk, w)) ? THEME_BY_ID.sewer : THEME_BY_ID.interior;
+    const keep = setting && ((want === 'underwater' && setting.medium === 'underwater') || (want === 'space' && setting.medium === 'space') || (want === 'cavern' && setting.medium === 'cavern' && (setting === cavern || cavern === THEME_BY_ID.interior)) || (want === 'sky' && setting.id === 'sky'));
     if (!keep) {
       const prev = setting;
       if (want === 'underwater') setting = THEME_BY_ID.reef;
       else if (want === 'space') setting = hasWord(tk, 'mars') ? THEME_BY_ID.mars : hasWord(tk, 'moon') || hasWord(tk, 'lunar') ? THEME_BY_ID.moon : THEME_BY_ID.space;
-      else if (want === 'cavern') setting = ['cave', 'cavern', 'underground', 'mine', 'grotto', 'subterranean'].some((w) => hasWord(tk, w)) ? THEME_BY_ID.cave : ['sewer', 'sewers'].some((w) => hasWord(tk, w)) ? THEME_BY_ID.sewer : THEME_BY_ID.interior;
+      else if (want === 'cavern') setting = cavern;
       else if (want === 'sky') setting = THEME_BY_ID.sky;
-      if (prev && prev !== setting) secondary = prev;
+      // "inside" only said where: it doesn't make the plain indoor setting a second one
+      if (prev && prev !== setting && !(want === 'cavern' && prev.id === 'interior')) secondary = prev;
       settingHit = { th: setting, first: med.index, last: med.last, fromMedium: true };
+    }
+  }
+  // inside a volcano, the volcano is the walls: not a second setting
+  if (setting?.id === 'magma_chamber' && ['volcano', 'interior'].includes(secondary?.id)) secondary = null;
+  // "on a floating island": the setting word runs on into the next one ("island")
+  if (settingHit && Number.isFinite(settingHit.first)) {
+    for (let grew = true; grew;) {
+      grew = false;
+      const end = settingHit.last ?? settingHit.first;
+      const next = sScores.find((x) => x.th !== settingHit.th && x.first === end + 1);
+      if (next) { settingHit = { ...settingHit, last: next.last }; grew = true; }
     }
   }
   // "a bakery in a graveyard": a second place after a preposition is where the first one is
@@ -310,7 +368,8 @@ export function generateRecipe(sentence, { variant = 0 } = {}) {
   let scatter = [];
   const addProp = (prop, density) => { if (SCATTER[prop] && !scatter.some((s) => s.prop === prop)) scatter.push({ prop, density }); };
   const mentionedProps = findMentions(tk, PROP_WORDS);
-  const mentionedLms = findMentions(tk, LANDMARK_WORDS);
+  // inside a volcano there is no volcano to look at
+  const mentionedLms = findMentions(tk, LANDMARK_WORDS).filter((k) => !(setting.id === 'magma_chamber' && k === 'volcano'));
   for (const prop of mentionedProps.slice(0, 4)) addProp(prop, SCATTER[prop].big ? 0.6 : 0.75);
   places.forEach((p, i) => { for (const [prop, d] of p.props.slice(0, i === 0 ? 5 : 3)) addProp(prop, d); });
   for (const [prop, d] of setting.scatter.slice(0, homeOnly ? 3 : places.length ? 4 : 10)) addProp(prop, places.length ? d * 0.8 : d);
@@ -447,7 +506,7 @@ export function generateRecipe(sentence, { variant = 0 } = {}) {
     weatherWord: { clear: 'weather', cloudy: 'clouds', rain: 'rain', storm: 'storm', snow: 'snow', fog: 'fog', embers: 'ash', bubbles: 'bubbles', leaves: 'leaves', spores: 'spores', sandstorm: 'sand', petals: 'petals', sparkles: 'sparkles' }[weather],
     timeWord: { dawn: 'morning', day: 'daytime', dusk: 'evening', night: 'night' }[time],
     where, settingAdj: homeOnly || container ? null : setting.adj, nPoi: String(lms.length),
-    placeNoun: lead ? lead.nouns[0].toLowerCase() : '', placeThing: lead ? lead.things : [],
+    placeNoun: lead ? placeNounFor(lead, tk, pScores.find((x) => x.th === lead)?.hit) : '', placeThing: lead ? lead.things : [],
   };
   // landmark names first: the hero building often names the world
   const landmarks = lms.map((l) => {
@@ -464,7 +523,7 @@ export function generateRecipe(sentence, { variant = 0 } = {}) {
   const name = !lead ? (mentionedLm && rng.chance(0.6) ? mentionedLm.name : worldName(rng, setting, ctx)) : homeOnly ? placeWorldName(rng, lead, ctx) : comboWorldName(rng, lead, setting, ctx);
   ctx.name = name; ctx.place = name;
   ctx.landmark = landmarks.map((l) => l.name);
-  ctx.local = locals.map((l) => l.name.split(' ')[0]);
+  ctx.local = locals.map((l) => (l.ruler ? rulerFirst : callName(l.name)));
   for (const lm of landmarks) {
     const c = { ...ctx, NAME: lm.name, n: String(rng.int(2, 40)) };
     lm.sign = lm._place && lm._hero && lm._place.signs.length && rng.chance(0.85) ? fill(rng.pick(lm._place.signs), c, rng) : signText(rng, lm.kind, c);
@@ -473,6 +532,7 @@ export function generateRecipe(sentence, { variant = 0 } = {}) {
 
   // what the locals say: something about their place, the place-in-this-setting, their mood, then general chat
   ctx.usedLines = new Set();
+  ctx.mixedSpecies = new Set(locals.map((l) => `${l.species}/${l.variant || ''}`)).size > 1;
   const usedTpl = new Set();
   locals.forEach((l) => {
     const others = locals.filter((o) => o !== l).map((o) => o.name);
@@ -480,7 +540,7 @@ export function generateRecipe(sentence, { variant = 0 } = {}) {
     const special = [];
     const p = l._place || (lead && rng.chance(0.5) ? lead : null);
     const fresh = (pool) => { const left = pool.filter((x) => !usedTpl.has(x)); if (!left.length) return null; const t = rng.pick(left); usedTpl.add(t); return t; };
-    const pc = p ? { ...c, placeNoun: p.nouns[0].toLowerCase(), placeThing: p.things } : c;
+    const pc = p ? { ...c, placeNoun: placeNounFor(p, tk, pScores.find((x) => x.th === p)?.hit), placeThing: p.things } : c;
     const say = (pool, cc) => { const t = pool.length ? fresh(pool) : null; if (t) special.push(fill(t, cc, rng)); };
     if (p) say(p.lines, pc);
     if (p && !homeOnly && rng.chance(0.6)) say(COMBO_LINES, pc);

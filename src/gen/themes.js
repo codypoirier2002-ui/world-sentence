@@ -428,6 +428,18 @@ export const THEMES = [
     pre: ['Drip', 'Murk', 'Gurgle', 'Echo', 'Slime', 'Grate'], suf: ['drain', 'pipe', 'flow'],
     things: ['the smell', 'drips', 'echoes', 'lost things', 'the current'], roles: ['drip counter', 'lost-property diver', 'echo technician', 'pipe whisperer'],
   },
+  {
+    // Inside a volcano: a dark rock chamber lit by a lava lake. "On a volcano" is the volcano theme.
+    id: 'magma_chamber', words: ['magma chamber', 'inside a volcano', 'inside the volcano', 'inside volcanoes', 'in a volcano', 'in the volcano', 'into a volcano', 'into the volcano', 'lava cave', 'lava tube', 'lava tubes'],
+    terrain: { shape: 'crater', ground: 'rock', water: 'lake', height: 0.5, roughness: 0.6 }, medium: 'cavern',
+    palette: pal('#2a1410', '#8a2e14', '#3b302c', '#4a3a33', '#2a2220', '#ff5a10', '#4f4a2e', '#ff7a1a', { glow: '#ffb35c' }),
+    time: ['night'], weather: ['embers'], ambience: ['fire', 'cave'],
+    scatter: [['rock', 0.7], ['boulder', 0.5], ['crystal', 0.4], ['torch', 0.4], ['bones', 0.2]],
+    landmarks: ['crystal_spire', 'obelisk', 'throne', 'monolith', 'temple', 'skeleton'],
+    species: ['golem', 'critter', 'blob', 'bug'], place: ['Magma Chamber', 'Furnace', 'Inner Crater', 'Core'],
+    pre: ['Cinder', 'Ember', 'Magma', 'Scorch', 'Smoulder', 'Char'], suf: ['forge', 'vent', 'pit', 'core'],
+    things: ['lava', 'the heat', 'the glow', 'brimstone', 'warm rocks'], roles: ['lava lifeguard', 'magma inspector', 'heat complainer', 'eruption forecaster'],
+  },
 ];
 
 // How to say each setting in a sentence, and adjectives for names.
@@ -451,6 +463,7 @@ const SETTING_META = {
   savanna: ['on the savanna', ['Savanna', 'Golden']], mars: ['on Mars', ['Martian', 'Red Planet']],
   salt_flats: ['on the salt flats', ['Salt Flat', 'White']], lakeside: ['by the lake', ['Lakeside', 'Shoreline']],
   bamboo: ['in a bamboo forest', ['Bamboo', 'Jade']], sewer: ['in the sewers', ['Sewer', 'Underground']],
+  magma_chamber: ['inside a volcano', ['Volcanic', 'Molten', 'Magma']],
 };
 for (const t of THEMES) {
   const [phrase, adj] = SETTING_META[t.id] || ['somewhere', ['Local']];

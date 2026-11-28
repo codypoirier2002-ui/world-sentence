@@ -78,6 +78,58 @@ test('every keyword combines: place + setting + creatures + mood + named things'
   assert.equal(generateRecipe('a cozy laundromat at midnight').sky.time, 'night');
 });
 
+test('everyday places in odd sentences: one place per building, the right setting and locals', () => {
+  const kinds = (r) => r.landmarks.map((l) => l.kind), props = (r) => r.scatter.map((s) => s.prop);
+  const byId = Object.fromEntries(PLACES.map((p) => [p.id, p]));
+  const roles = (r) => r.locals.map((l) => l.role);
+  const office = byId.office, living = byId.living_room;
+  // "dentist's office" and "post office" are not also a corporate office
+  const dentist = generateRecipe("a dentist's office at the bottom of the ocean");
+  assert.equal(dentist.medium, 'underwater');
+  assert.ok(kinds(dentist).includes('dentist'));
+  assert.ok(!roles(dentist).some((x) => office.roles.includes(x)), 'no office workers at the dentist');
+  const post = generateRecipe('a cozy post office and a bakery on a floating island at night');
+  assert.ok(kinds(post).includes('post_office') && kinds(post).includes('bakery'));
+  assert.ok(!roles(post).some((x) => office.roles.includes(x)), 'no office workers at the post office');
+  assert.equal(post.sky.time, 'night');
+  assert.match(post.intro + post.locals.flatMap((l) => l.lines).join(' '), /on a floating island/);
+  assert.doesNotMatch(post.intro, /on a floating[,.]/);
+  // "parking garage" is not also a garage full of sofas
+  const garage = generateRecipe('a parking garage ruled by pigeons in the rain');
+  assert.ok(kinds(garage).includes('parking_booth'));
+  assert.ok(!props(garage).some((p) => living.props.some(([q]) => q === p)), 'no living-room props');
+  assert.ok(garage.locals.some((l) => l.ruler && l.species === 'bird'));
+  assert.equal(garage.sky.weather, 'rain');
+  // sloths look like sloths (the bear-like biped), not mice
+  const wash = generateRecipe('a haunted car wash in the jungle staffed by sloths');
+  assert.ok(kinds(wash).includes('car_wash'));
+  assert.ok(wash.locals.every((l) => l.species === 'bear'));
+  // inside a volcano is a lava-lit chamber, not a tiled room with a volcano in it
+  const salon = generateRecipe('a tiny pink hair salon inside a volcano');
+  assert.equal(salon.medium, 'cavern');
+  assert.equal(salon.sky.weather, 'embers');
+  assert.ok(kinds(salon).includes('barber') && !kinds(salon).includes('volcano'));
+  assert.match(salon.intro, /hair salon inside a volcano/);
+  assert.equal(generateRecipe('a bakery inside an old volcano').medium, 'cavern');
+  assert.equal(generateRecipe('a bakery inside an old volcano').sky.weather, 'embers');
+  assert.notEqual(generateRecipe('a gift shop inside a mountain').terrain.ground, 'tile');
+  // the place is called what the viewer called it
+  assert.match(generateRecipe('a pizza shop on mars').intro + generateRecipe('a pizza shop on mars', { variant: 1 }).intro, /pizza shop/);
+  assert.doesNotMatch(generateRecipe('a pizza shop on mars').intro, /a pizza on/);
+  const box = generateRecipe('a box office in the desert');
+  assert.ok(kinds(box).includes('cinema'));
+  assert.doesNotMatch(box.intro, /ordinary offices/);
+  // lines that only work for some worlds
+  for (const s of ["a dentist's office at the bottom of the ocean", 'a tiny pink hair salon inside a volcano', 'a laundromat on the moon', 'a school', 'a cozy office inside a whale']) {
+    for (let v = 0; v < 6; v++) {
+      const r = generateRecipe(s, { variant: v });
+      const text = [...r.locals.flatMap((l) => l.lines), ...r.landmarks.map((l) => l.sign)].join(' ');
+      assert.doesNotMatch(text, /Everyone here is a person\./, s);
+      assert.doesNotMatch(text, /This means you, (Mrs?\.|Old|Sir|Dame|Deputy|Little|Big|Professor|Auntie|Uncle|Captain|Doctor|Madame|Brother|Sister|Officer|Nurse|Reverend|Coach)\./, s);
+    }
+  }
+});
+
 test('every catalog entry has a builder and a default colour', () => {
   for (const k of Object.keys(SCATTER)) { assert.ok(PROPS[k], `prop builder ${k}`); assert.ok(PROP_MAIN[k], `prop colour ${k}`); }
   for (const k of Object.keys(LANDMARK_KINDS)) { assert.ok(LANDMARKS[k], `landmark builder ${k}`); assert.ok(LANDMARK_MAIN[k], `landmark colour ${k}`); }
