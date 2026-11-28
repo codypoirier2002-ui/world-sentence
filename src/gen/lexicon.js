@@ -22,7 +22,11 @@ export const CREATURES = [
   { w: ['cat', 'kitten', 'kitty', 'fox', 'lynx', 'tiger', 'lion', 'leopard', 'squirrel', 'raccoon'], sp: 'critter', v: 'cat', c: ['#f2a35a', '#8a8a8a', '#3a3a3a', '#f4efe4'], a: '#ffb3c4' },
   { w: ['dog', 'puppy', 'wolf', 'hound', 'poodle', 'corgi', 'horse', 'pony', 'donkey', 'otter', 'beaver', 'weasel', 'badger', 'hedgehog'], sp: 'critter', v: 'dog', c: ['#c89a6a', '#8a6a4a', '#f4efe4', '#5a4a3a'], a: '#2a2a2a' },
   { w: ['rabbit', 'bunny', 'hare', 'kangaroo'], sp: 'critter', v: 'rabbit', c: ['#f4efe4', '#c8b49a', '#9a8a7a'], a: '#ffb3c4' },
-  { w: ['mouse', 'mice', 'rat', 'hamster', 'gerbil', 'mole', 'shrew', 'possum', 'koala', 'monkey', 'ape', 'lemur', 'sloth'], sp: 'critter', v: 'mouse', c: ['#9a9aa2', '#c8b49a', '#8a7a6a'], a: '#ffb3c4' },
+  { w: ['mouse', 'mice', 'rat', 'hamster', 'gerbil', 'mole', 'shrew', 'possum'], sp: 'critter', v: 'mouse', c: ['#9a9aa2', '#c8b49a', '#8a7a6a'], a: '#ffb3c4' },
+  // tree-dwellers that sit and stand upright: the bear-like biped is far closer than a mouse
+  { w: ['sloth'], sp: 'bear', c: ['#8a7560', '#9c8468', '#7a6a58'], a: '#e8dcc4' },
+  { w: ['koala'], sp: 'bear', c: ['#9a9aa2', '#8a8a92'], a: '#f4efe4' },
+  { w: ['monkey', 'ape', 'chimp', 'chimpanzee', 'orangutan', 'lemur', 'baboon'], sp: 'bear', c: ['#7a5a3e', '#8a6a4a', '#b0703a'], a: '#e8c8a0' },
   { w: ['pig', 'piglet', 'hog', 'boar'], sp: 'critter', v: 'pig', c: ['#f7b6c2', '#e8a0b0'], a: '#d87a8a' },
   { w: ['cow', 'cattle', 'bull', 'ox', 'goat', 'deer', 'moose', 'elk', 'reindeer', 'antelope', 'giraffe', 'yak', 'bison'], sp: 'critter', v: 'cow', c: ['#f4efe4', '#8a6a4a', '#c89a6a'], a: '#2a2a2a' },
   { w: ['sheep', 'lamb', 'llama', 'alpaca', 'poodle'], sp: 'critter', v: 'sheep', c: ['#f6f2ea', '#e8e0d0'], a: '#3a3a3a' },

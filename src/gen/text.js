@@ -47,6 +47,13 @@ const NAME_B = ['ble', 'bert', 'wick', 'ston', 'ley', 'ton', 'ny', 'by', 'kin', 
 const SUR_B = ['wick', 'bottom', 'worth', 'thistle', 'kettle', 'pott', 'ridge', 'field', 'sworth', 'hump', 'lethwaite', 'stump', 'muddle', 'whistle', 'pickle', 'button', 'crumb', 'puddle', 'nook', 'fold', 'dimple', 'wobble'];
 const TITLES = ['Mrs.', 'Mr.', 'Old', 'Sir', 'Dame', 'Deputy', 'Little', 'Big', 'Professor', 'Auntie', 'Uncle', 'Captain', 'Doctor', 'Madame', 'Brother', 'Sister', 'Officer', 'Nurse', 'Reverend', 'Coach'];
 const EPITHETS = ['the Damp', 'the Tall', 'the Brief', 'the Moist', 'the Reasonable', 'the Late', 'the Lesser', 'the Elder', 'the Quiet', 'the Unready', 'the Punctual', 'the Third', 'the Adequate', 'the Persistent', 'the Unbothered', 'the Mild'];
+// How others address a local: "Barley" for "Barley the Tall", but the whole
+// "Officer Sparklethistle", never just "Officer" or "Old".
+const TITLE_SET = new Set(TITLES);
+export const callName = (name) => {
+  const first = name.split(' ')[0];
+  return name.includes(' ') && TITLE_SET.has(first) ? name : first;
+};
 export const RULER_TITLES = ['Monarch', 'High Chancellor', 'Supreme Leader', 'Grand Overseer', 'President-for-Life', 'Archduke', 'Regent', 'Sovereign', 'Lord Protector', 'Chief Executive', 'Benevolent Despot', 'Interim Emperor'];
 
 export const firstName = (rng) => rng.pick(NAME_A) + rng.pick(NAME_B);
@@ -319,6 +326,8 @@ export function localLines(rng, ctx, isRuler, count = 3) {
     if (out.length >= count) break;
     if (used.has(t)) continue;
     if (t.includes('{otherLocal}') && !ctx.otherLocal) continue;
+    // "Everyone here is a person. Except you." is no joke, and it isn't true when a dog lives here too
+    if (t.startsWith('Everyone here is a {speciesSg}') && (ctx.speciesSg === 'person' || ctx.mixedSpecies)) continue;
     used.add(t);
     out.push(fill(t, { ...c, n: String(rng.int(2, 60)) }, rng));
   }
